@@ -327,7 +327,32 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
     <select id="f-sort-loc" autocomplete="off" onchange="renderFindings()">
       <option value="date">Sort by Date (default)</option>
       <option value="az">Sort A → Z (venue name)</option>
-      <option value="rating">Sort by Rating ★</option>
+    </select>
+    <select id="f-filter-loc" autocomplete="off" onchange="renderFindings()">
+      <option value="">All Properties</option>
+      <optgroup label="── Part 1 · Self-Directed ──">
+        <option value="v1">Mett / L'Amo patio</option>
+        <option value="v2">Marriott Crossroads Café</option>
+        <option value="v3">Mondrian Duxton</option>
+        <option value="v4">Cafe Q + Tofu G (Takashimaya)</option>
+        <option value="v5">Chip Bee Bistro</option>
+        <option value="v6">La Terrace + Claudine</option>
+        <option value="v7">Burnt Ends</option>
+        <option value="v8">Violet Oon</option>
+        <option value="v10">Singapore EDITION + Artyzen</option>
+        <option value="v11">Madison House + Mett</option>
+        <option value="v12">Raffles — Writers Bar</option>
+        <option value="v13">Shangri-La Lobby Lounge + The Line</option>
+        <option value="v14">Mr Bucket Chocolaterie</option>
+      </optgroup>
+      <optgroup label="── Part 2 · Pan Pacific ──">
+        <option value="v15">Pan Pacific Singapore</option>
+        <option value="v16">Pan Pacific Orchard</option>
+        <option value="v17">PARKROYAL COLLECTION Marina Bay</option>
+        <option value="v18">PARKROYAL COLLECTION Pickering</option>
+        <option value="v19">PARKROYAL on Beach Road</option>
+        <option value="v21">Meeting — Mr. Steve Hwang</option>
+      </optgroup>
     </select>
   </div>
   <div class="findings-grid" id="findings-grid"></div>
@@ -431,6 +456,21 @@ const VENUES = [
   { id:'v17', part:2, date:'Wed 1 Jul', time:'All Day', name:'PARKROYAL COLLECTION Marina Bay — F&B + Wellness', address:'6 Raffles Blvd, S039594', mrt:'Promenade (CC/DT) / Esplanade', travel:'—', type:'wellness', types:['Hotel / F&B + Spa'], purpose:'All-Day Dining Halal (Peppermint) · Fine Chinese (Peach Blossoms) · St. Gregory Spa & Wellness Floor', ssp:['MEZZ', 'ST25 by KOTO', 'Premiere Wellness'], summary:'Singapore\'s first \'Garden-in-a-Hotel\'. 2,400+ plants, 13m green wall, rooftop Urban Farm. Peppermint = halal all-day buffet; Peach Blossoms = progressive Cantonese. St. Gregory spa anchors wellness.', host:'Jamie Tan (Hotel Mgr); Benjamin Ng (Dir. F&B); Carol Aw (Lifestyle Mgr)', link:'', status:'Planned' },
   { id:'v18', part:2, date:'Thu 2 Jul', time:'All Day', name:'PARKROYAL COLLECTION Pickering — Landscape & Housekeeping', address:'3 Upper Pickering St, S058289', mrt:'Chinatown (NE/DT) / Telok Ayer', travel:'—', type:'wellness', types:['Hotel / Operations'], purpose:'Landscape & Housekeeping operations', ssp:['Premiere Wellness', 'BOH standards', 'Terrasse greenery'], summary:'WOHA\'s landmark \'hotel-in-a-garden\' — ~15,000 sq m greenery (≈2× the site), zero-energy solar sky gardens, rainwater/NEWater irrigation, Green Mark Platinum. Session = how large vertical landscape is maintained and housekeeping standards run.', host:'Dennis Johny (Dir. Operations); Bill Li (Exec Housekeeper)', link:'', status:'Planned' },
   { id:'v19', part:2, date:'Fri 3 Jul', time:'AM', name:'PARKROYAL on Beach Road — St Gregory Spa', address:'7500 Beach Rd, S199591', mrt:'Nicoll Highway (CC) / Bugis / Lavender', travel:'—', type:'wellness', types:['Hotel / Wellness'], purpose:'St Gregory Spa & Wellness Floor', ssp:['Premiere Wellness', 'Club Lounge 18F (wellness tie-in)'], summary:'St. Gregory\'s refreshed single-level Wellness Floor (opened Nov 2025): signature spa + hydrotherapy + gym + outdoor pool on one level, pairing science-backed modalities (NuCalm, EMS, Reiki, sound baths) with heritage Chinese & Indonesian therapies.', host:'Sophia Osman (Dir. Rooms); Renee Chong (Lifestyle Mgr)', link:'', status:'Planned' },
+  { id:'v21', part:2, date:'TBD — Singapore Visit', time:'TBD', name:'Meeting — Mr. Steve Hwang Dong Wook', address:'TBD', mrt:'—', travel:'—', type:'briefing', types:['Renovation Catchup / HMA Briefing'], purpose:'SSP renovation progress and HMA side letter catchup. Pre-loaded with briefing notes from 5 key documents (11 Jun Executive Summary, Side Letter Discussion Copy, Counter-Position 10 Jun, IRR computations with/without guarantee).', ssp:['All SSP outlets — renovation context'], summary:'Commercial catchup with Mr. Steve Hwang Dong Wook on the USD 18.6M SSP renovation and HMA side letter negotiations. The card below is pre-populated with key bullet points from the documents so you can answer questions quickly without searching through files.', host:'Mr. Steve Hwang Dong Wook', link:'', status:'Planned',
+    defaults: {
+      space: 'Plaza Hotel Co. Ltd committing USD 18.6M to reposition SSP to true luxury.\nConstruction target: August 2026 — contingent on side letter execution first.\n4 rounds of commercial discussions with Accor completed to date.\nBoard approved budget on conditional basis: performance guarantee is a PREREQUISITE — renovation does not proceed without it.\nParallel track: 16-year HMA renewal (separate instrument, separate consideration) targeting Q4 2026 term sheet.\nLegal: Baker McKenzie to draft side letter. Owner position: Option A (recovery principle, dual-leg AND test, termination right retained).',
+      arrival: 'WITH Performance Guarantee:\n  Project IRR 8.6% | Payback 6.0 yrs | Project NPV USD 12.1M\n  Equity IRR 10.2% | Equity Payback 5.9 yrs | Equity NPV USD 11.7M\n\nWITHOUT Guarantee:\n  Project IRR 7.8% | Payback 7.4 yrs | Project NPV USD 1.6M\n  Equity IRR 6.9% | Equity Payback 7.6 yrs | Equity NPV USD 1.3M\n\nGuarantee value: +USD 10.5M project NPV / +USD 10.4M equity NPV\n→ This is NOT a negotiating position — it is the financial case for why the side letter must be signed before construction starts.',
+      concept: 'AGREED:\n• ADR Year 1: USD 207 ✓ (both sides agreed)\n• ADR measurement: rolling 2-year; >10% miss in 2 consecutive years triggers termination (Option A)\n• Year 4+ test structure: dual-leg AND (both RGI + GOP) — Option A accepted; Option B (single-leg OR) REJECTED\n• Year 4+ threshold: 90% on both legs (Accor Option A was 85% — Owner rejected; 90% required)\n• Clawback mechanic: 50% of shortfall in Year 1 of recovery + 50% in Year 2; obligation carries forward if deferred\n• Capital recovery principle: clawback suspended until Owner recovers full USD 18.6M via cumulative incremental GOP uplift above 2025 baseline ✓\n• Loyalty cost cap: 4% of gross revenue effective 1 January 2027 ✓\n• 2025 GOP as recovery baseline ✓',
+      service: '1. FF&E EXCLUSION — OPEN (critical)\n   Accor wants FF&E reserve savings (3%→1% post-PIP) credited toward USD 18.6M recovery. Owner REJECTS. FF&E savings are not Accor-generated uplift. Allowing this artificially accelerates clawback exposure.\n\n2. USD DENOMINATION — OPEN (critical)\n   USD 18.6M threshold must be measured in USD (or USD-indexed). VND denomination erodes threshold in real terms over 7 years. Not acceptable.\n\n3. GOP MARKET ADJUSTMENT TRIGGER — OPEN\n   Accor proposes auto-reduction if compset RevPAR drops 5%+. Owner requires 10% minimum trigger. 20% drop-through rate once triggered is acceptable.\n\n4. COMPSET DEFINITION — OPEN (must be in side letter)\n   Proposed: Park Hyatt Saigon + Hilton Saigon + JW Marriott Saigon + 1 La Maison nominee. Nominee must meet: luxury classification + District 1 location + minimum key count — to prevent nomination of a weak hotel to lower the benchmark.\n\n5. PIP CERTIFICATION SCOPE — OPEN\n   D&TS scope bounded to critical technical compliance only. ADR clock cannot start on unilateral Accor certification. Owner right to contest any certification triggering a commercial obligation.\n\n6. LOYALTY TIER 2 DEFINITION — OPEN\n   4% cap only effective if Tier 2 defined precisely: complimentary upgrades, breakfast, lounge access, water, third-party payments as distinct line items.\n\n7. CLUB LOUNGE ACCESS POLICY — OPEN\n   Comp upgrades must NOT confer Club Lounge access. In 2025: 59% of club-room nights were free upgrades; 2,547 additional comped passes issued. Standalone clause required in side letter.\n\n8. REDEMPTION REVENUE REPORTING — OPEN\n   LeClub redemption revenue must appear as separate line item in monthly Owner report — not a standalone dashboard.',
+      beverage: 'Pre-renovation Accor fees: USD 509K (2024) / USD 627K (2025)\nConstruction period: USD 473K (2026) / USD 578K (2027)\n\nPost-renovation WITH guarantee: USD 862K (2028) → ~USD 1,016K/yr plateau\nPost-renovation WITHOUT guarantee: USD 746K (2028) → ~USD 850K/yr plateau\nCumulative fees 2028–2036: ~USD 8.7M (with) vs ~USD 7.4M (without)\n\nKey argument: Renovation roughly DOUBLES Accor\'s fee income at ZERO Accor capital risk. ~USD 3.1M cumulative incremental fees by 2036 over pre-reno run-rate (conservative ADR basis). The performance guarantee is worth ~USD 1.36M to Accor in fee uplift alone — Accor is underwriting its own numbers.\n\nOwner position on 16-yr HMA: Accor\'s renewal requires its own commercial consideration — key money and/or management fee discount. This is NOT consideration for the repositioning guarantee and must NOT be bundled into the side letter.',
+      wellness: 'DEFERRED — these do not block construction, to be resolved in Q4 2026 HMA track:\n• HMA term: Accor proposes end current HMA 31 Dec 2027; new 16-yr HMA from 1 Jan 2028. Owner accepts 2028 start date. Duration and terms TBN.\n• Key money: Accor proposes USD 1.5M (Option B only). Owner position: key money and/or mgmt fee discount belong in HMA track — NOT in side letter.\n• Repositioning window end date: must have defined end date or trigger in side letter (Baker McKenzie to draft; placeholder in first version).\n• Executive Lounge P&L reporting: Accor proposes quarterly; Owner requires monthly — to be resolved in full HMA.\n• USALI 12: implementation from August 2026 reporting cycle including Executive Lounge subschedule and Loyalty Member Benefits line-item breakdown.',
+      commercial: 'OWNER POSITION (Option A base):\n• Structure: repositioning guarantee = side letter only (bounded window). 16-yr HMA = separate instrument, separate consideration.\n• ADR: Y1 USD 207 agreed. Y2 USD 223 / Y3 USD 240 (Accor at USD 213/230 — gap USD 10 each year).\n• Performance test Y4+: dual-leg AND, 90% both RGI + GOP; rolling 2-year; termination right if >10% miss on either leg for 2 consecutive years.\n• Capital recovery: clawback suspended until full USD 18.6M recovered via incremental GOP uplift above 2025 baseline — FF&E excluded, USD-denominated.\n• Loyalty: 4% cap from 1 Jan 2027; Tier 2 to be defined precisely.\n• Club Lounge: comp upgrades ≠ lounge access; monthly P&L reporting.\n\nACCOR GAP ITEMS: Y2/Y3 ADR (USD 10 each) | FF&E credit to recovery | 5% vs 10% GOP market trigger | 85% vs 90% threshold | Quarterly vs monthly reporting',
+      photos: 'CRITICAL NUMBERS:\nCapex: USD 18.6M | Construction start: Aug 2026 (target)\nIRR with guarantee: 8.6% project / 10.2% equity\nIRR without: 7.8% project / 6.9% equity\nNPV gap: USD 10.5M project / USD 10.4M equity\nPayback: 6.0 yrs (with) vs 7.4 yrs (without)\nADR Y1 $207 ✓ | Y2 gap $10 | Y3 gap $10\nGuarantee threshold: 90% RGI AND GOP | Rolling 2-yr | >10% miss triggers termination\nLoyalty cap: 4% from 1 Jan 2027\nAccor post-reno fees: $862K–$1,016K/yr (vs $509–627K pre-reno)\nClub Lounge 2025 data: 59% club-room nights = free upgrades; 2,547 comped passes issued\nNext step: side letter executed BEFORE Aug 2026 | 16-yr HMA term sheet Q4 2026',
+      top1: 'Side letter must be signed BEFORE August 2026 construction start — non-negotiable',
+      top2: 'Guarantee = USD 10.5M incremental NPV; without it equity IRR drops 3.3pp to 6.9% — financial case, not negotiating position',
+      top3: 'Two critical drafting points: (1) FF&E savings excluded from recovery; (2) USD 18.6M threshold in USD not VND',
+    }
+  },
   { id:'v20', part:2, date:'Fri 3 Jul', time:'Late', name:'Debrief with Ms Wee Wei Ling (PPHG)', address:'PARKROYAL on Beach Road, 7500 Beach Rd', mrt:'—', travel:'—', type:'meeting', types:['Debrief'], purpose:'Consolidate takeaways across the week; align on what applies to SSP.', ssp:['All outlets (synthesis)'], summary:'Closing debrief with Ms Wee Wei Ling (Executive Director, Sustainability Partnerships, Lifestyle & Asset, PPHG). Come with the Trip Synthesis sheet completed so the conversation is structured around SSP applications.', host:'Ms Wee Wei Ling', link:'', status:'Planned' },
 ];
 
@@ -523,6 +563,14 @@ const QUESTIONS = [
 
 const SSP_OUTLETS = ['Boudoir Lounge','Le 17 Bistro','MEZZ','ST25 by KOTO','Club Lounge 18F','Premiere Wellness','Terrasse (Level 4)','Lobby Bar'];
 
+const VENUE_AREA = {
+  v1:'Fort Canning', v2:'Orchard', v3:'Tanjong Pagar', v4:'Orchard',
+  v5:'Holland Village', v6:'Dempsey', v7:'Dempsey', v8:'Dempsey',
+  v9:'', v10:'Orchard', v11:'Fort Canning', v12:'City Hall',
+  v13:'Orchard', v14:'Orchard', v15:'Marina', v16:'Orchard',
+  v17:'Marina', v18:'Chinatown', v19:'Kampong', v20:'Kampong', v21:''
+};
+
 // ─── STORAGE ─────────────────────────────────────────────────────────────────
 function load(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch(e) { return null; } }
 function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {} }
@@ -563,8 +611,8 @@ function showTab(name) {
 
 // ─── TYPE TAG ────────────────────────────────────────────────────────────────
 function typeTag(type) {
-  const map = { hotel:'tag-hotel', restaurant:'tag-resto', bar:'tag-bar', cafe:'tag-cafe', wellness:'tag-wellness', meeting:'tag-meeting' };
-  const labels = { hotel:'Hotel', restaurant:'Restaurant', bar:'Bar', cafe:'Café', wellness:'Wellness/Club', meeting:'Meeting' };
+  const map = { hotel:'tag-hotel', restaurant:'tag-resto', bar:'tag-bar', cafe:'tag-cafe', wellness:'tag-wellness', meeting:'tag-meeting', briefing:'tag-meeting' };
+  const labels = { hotel:'Hotel', restaurant:'Restaurant', bar:'Bar', cafe:'Café', wellness:'Wellness/Club', meeting:'Meeting', briefing:'Briefing / Catchup' };
   return `<span class="tag ${map[type]||'tag-cafe'}">${labels[type]||type}</span>`;
 }
 
@@ -796,15 +844,15 @@ function toggleQ(key, val) {
 function renderFindings() {
   const grid = document.getElementById('findings-grid');
   const filterPart = (document.getElementById('f-sort-part')||{}).value || '';
-  const sortMode  = (document.getElementById('f-sort-loc')||{}).value || 'date';
+  const sortMode   = (document.getElementById('f-sort-loc')||{}).value || 'date';
+  const filterLoc  = (document.getElementById('f-filter-loc')||{}).value || '';
 
   let venues = VENUES.filter(v => v.type !== 'meeting');
   if (filterPart) venues = venues.filter(v => String(v.part) === filterPart);
+  if (filterLoc)  venues = venues.filter(v => v.id === filterLoc);
 
   if (sortMode === 'az') {
     venues = [...venues].sort((a,b) => a.name.localeCompare(b.name));
-  } else if (sortMode === 'rating') {
-    venues = [...venues].sort((a,b) => ((findings[b.id]||{}).rating||0) - ((findings[a.id]||{}).rating||0));
   }
   // default: keep original date order
 
@@ -827,53 +875,67 @@ function renderFindings() {
     </div>`;
   }
 
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
   function cardHtml(v) {
     const f = findings[v.id] || {};
+    const d = v.defaults || {};
     const rating = f.rating || 0;
     const stars = [1,2,3,4,5].map(i => `<span class="star ${i<=rating?'filled':''}" onclick="setRatingF('${v.id}',${i})">★</span>`).join('');
     const partBadge = `<span style="font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;background:${v.part===1?'rgba(255,255,255,.15)':'rgba(180,120,255,.3)'}">Part ${v.part}</span>`;
-    return `<div class="finding-card" id="fc-${v.id}">
-      <div class="finding-header">
+    const isBriefing = v.type === 'briefing';
+    const labels = isBriefing
+      ? { space:'Context & Purpose', arrival:'Investment Case & Returns', concept:'Terms Agreed / Near-Agreed', service:'⚠ Open Items — Must Resolve Before Signing', beverage:'Management Fee Context (16-yr HMA)', wellness:'16-Year HMA — Deferred to Q4 2026', commercial:'Our Position vs Accor' }
+      : { space:'Space & Design', arrival:'Arrival & Flow', concept:'F&B Concept & Menu', service:'Service & Staffing', beverage:'Beverage & Storytelling', wellness:'Wellness (if any)', commercial:'Commercial Model & Pricing' };
+    const ph = isBriefing
+      ? { space:'Trip context…', arrival:'Financial numbers…', concept:'Agreed items…', service:'Outstanding items…', beverage:'Fee structure…', wellness:'HMA deferred items…', commercial:'Owner vs Accor positions…' }
+      : { space:'Layout, materials, lighting, volume, the "wow"', arrival:'Arrival sequence; how guests move and dwell', concept:'Core idea; signature dishes; positioning', service:'Service style, staffing model, notable', beverage:'Signature drinks; how the story is told & sold', wellness:'Modalities, facilities, membership/programming', commercial:'Operator model, price points, the customer' };
+    const top = isBriefing ? ['Key deadline / action','Critical number to remember','Watch-out / risk to flag'] : ['Idea 1','Idea 2','Idea 3'];
+    return `<div class="finding-card" id="fc-${v.id}" style="${isBriefing?'border:2px solid var(--gold)':''}">
+      <div class="finding-header" style="${isBriefing?'background:#2a1a44':''}">
         <h3>${v.name} ${partBadge}<span style="font-size:10px;font-weight:400;color:rgba(255,255,255,.65);margin-left:4px">${v.date}</span></h3>
         <div class="finding-header-meta">
+          ${isBriefing?'<span style="font-size:10px;background:var(--gold);color:var(--navy);padding:2px 7px;border-radius:4px;font-weight:700">BRIEFING PREP</span>':''}
           <div class="stars">${stars}</div>
           <span class="saved-badge" id="fbadge-${v.id}">✓</span>
         </div>
       </div>
       <div class="finding-body">
-        ${field(v.id,'space','Space & Design','Layout, materials, lighting, volume, the "wow"')}
-        ${field(v.id,'arrival','Arrival & Flow','Arrival sequence; how guests move and dwell')}
-        ${field(v.id,'concept','F&B Concept & Menu','Core idea; signature dishes; positioning')}
-        ${field(v.id,'service','Service & Staffing','Service style, staffing model, notable')}
-        ${field(v.id,'beverage','Beverage & Storytelling','Signature drinks; how the story is told & sold')}
-        ${field(v.id,'wellness','Wellness (if any)','Modalities, facilities, membership/programming')}
-        ${field(v.id,'commercial','Commercial Model & Pricing','Operator model, price points, the customer')}
+        ${field(v.id,'space',labels.space,ph.space,d.space)}
+        ${field(v.id,'arrival',labels.arrival,ph.arrival,d.arrival)}
+        ${field(v.id,'concept',labels.concept,ph.concept,d.concept)}
+        ${field(v.id,'service',labels.service,ph.service,d.service)}
+        ${field(v.id,'beverage',labels.beverage,ph.beverage,d.beverage)}
+        ${field(v.id,'wellness',labels.wellness,ph.wellness,d.wellness)}
+        ${field(v.id,'commercial',labels.commercial,ph.commercial,d.commercial)}
         <div class="finding-field">
-          <label>SSP Outlet it Informs</label>
+          <label>${isBriefing?'Session / Informs':'SSP Outlet it Informs'}</label>
           <p style="font-size:11px;color:var(--accent);line-height:1.6">${v.ssp.join(', ')}</p>
         </div>
         <div class="finding-field finding-field-full">
-          <label>Top 3 Ideas to Action</label>
+          <label>${isBriefing?'3 Things to Have Ready if Asked':'Top 3 Ideas to Action'}</label>
           <div class="top3-list">
-            ${[1,2,3].map(i => `<div class="top3-item"><span class="top3-num">${i}</span><input class="top3-input" type="text" placeholder="Idea ${i}…" value="${(f['top'+i])||''}" oninput="updateFinding('${v.id}','top${i}',this.value)"></div>`).join('')}
+            ${[0,1,2].map(i => `<div class="top3-item"><span class="top3-num">${i+1}</span><input class="top3-input" type="text" placeholder="${top[i]}…" value="${esc(f['top'+(i+1)] !== undefined ? f['top'+(i+1)] : (d['top'+(i+1)]||''))}" oninput="updateFinding('${v.id}','top${i+1}',this.value)"></div>`).join('')}
           </div>
         </div>
         ${mediaHtml(v.id)}
         <div class="finding-field">
-          <label>Notes — Links, Contacts, References</label>
-          <textarea rows="2" placeholder="Photo numbers, links, contacts…" oninput="updateFinding('${v.id}','photos',this.value)">${f.photos||''}</textarea>
+          <label>${isBriefing?'Key Numbers — Quick Reference':'Notes — Links, Contacts, References'}</label>
+          <textarea rows="${isBriefing?4:2}" placeholder="${isBriefing?'Critical figures to recall…':'Photo numbers, links, contacts…'}" oninput="updateFinding('${v.id}','photos',this.value)">${esc(f.photos !== undefined ? f.photos : (d.photos||''))}</textarea>
         </div>
         <div class="finding-field">
           <label>Follow-up & Owner</label>
-          <textarea rows="2" placeholder="Next step + who owns it…" oninput="updateFinding('${v.id}','followup',this.value)">${f.followup||''}</textarea>
+          <textarea rows="2" placeholder="Next step + who owns it…" oninput="updateFinding('${v.id}','followup',this.value)">${esc(f.followup||'')}</textarea>
         </div>
       </div>
     </div>`;
   }
 
-  function field(id, key, label, placeholder) {
+  function field(id, key, label, placeholder, defVal) {
     const f = findings[id] || {};
-    return `<div class="finding-field"><label>${label}</label><textarea rows="2" placeholder="${placeholder}…" oninput="updateFinding('${id}','${key}',this.value)">${f[key]||''}</textarea></div>`;
+    const val = (f[key] !== undefined && f[key] !== '') ? f[key] : (defVal || '');
+    const rows = val && val.length > 200 ? 5 : val && val.length > 100 ? 4 : 3;
+    return `<div class="finding-field"><label>${label}</label><textarea rows="${rows}" placeholder="${placeholder}…" oninput="updateFinding('${id}','${key}',this.value)">${esc(val)}</textarea></div>`;
   }
 
   if (!filterPart) {
@@ -1136,6 +1198,7 @@ document.getElementById('filter-part').value = '';
 document.getElementById('search').value = '';
 document.getElementById('f-sort-part').value = '';
 document.getElementById('f-sort-loc').value = 'date';
+document.getElementById('f-filter-loc').value = '';
 renderVenues();
 renderNearby();
 renderQuestions();
