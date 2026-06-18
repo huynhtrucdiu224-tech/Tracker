@@ -1233,21 +1233,21 @@ const JBIN_KEY = '$2a$10$5DwpaoPQIHCeHk8XXtJqTeeYsRfiwLxtrXWGpGlg1BkmVJANMaJ5u';
 const JBIN_BASE = 'https://api.jsonbin.io/v3';
 
 function syncPayload() {
+  // Photos (mediaStore) excluded — base64 images exceed JSONBin 100KB free limit; photos stay on each device
   return {
     _version: 1,
     _saved: new Date().toISOString(),
     _device: /iPhone|iPad/.test(navigator.userAgent) ? 'mobile' : 'desktop',
-    notes, findings, qChecked, synthesis, mediaStore
+    notes, findings, qChecked, synthesis
   };
 }
 
 function applyPayload(d) {
   if (d._version !== 1) { setSyncStatus('⚠ Unrecognised data format'); return; }
-  if (d.notes)      { notes = d.notes;           save('sg26_notes', notes); }
-  if (d.findings)   { findings = d.findings;     save('sg26_findings', findings); }
-  if (d.qChecked)   { qChecked = d.qChecked;     save('sg26_q', qChecked); }
-  if (d.synthesis)  { synthesis = d.synthesis;   save('sg26_synthesis', synthesis); }
-  if (d.mediaStore) { mediaStore = d.mediaStore; save('sg26_media', mediaStore); }
+  if (d.notes)     { notes = d.notes;         save('sg26_notes', notes); }
+  if (d.findings)  { findings = d.findings;   save('sg26_findings', findings); }
+  if (d.qChecked)  { qChecked = d.qChecked;   save('sg26_q', qChecked); }
+  if (d.synthesis) { synthesis = d.synthesis; save('sg26_synthesis', synthesis); }
   renderVenues(); renderFindings(); renderQuestions(); renderSynthesis(); renderOverview();
 }
 
@@ -1257,10 +1257,10 @@ async function cloudPush() {
   const body = JSON.stringify(syncPayload());
   const headers = { 'Content-Type': 'application/json', 'X-Master-Key': JBIN_KEY };
   try {
-    let res, msg;
+    let res;
     if (binId) {
       res = await fetch(`${JBIN_BASE}/b/${binId}`, { method: 'PUT', headers, body });
-      msg = '✓ Pushed — ' + new Date().toLocaleTimeString();
+      if (res.ok) { setSyncStatus('✓ Pushed — ' + new Date().toLocaleTimeString()); return; }
     } else {
       headers['X-Bin-Name'] = 'SG_Tracker';
       headers['X-Bin-Private'] = 'true';
@@ -1268,13 +1268,14 @@ async function cloudPush() {
       if (res.ok) {
         const j = await res.json();
         localStorage.setItem('sg26_binId', j.metadata.id);
-        msg = '✓ Cloud bin created! Push again from other device after opening it.';
+        setSyncStatus('✓ Cloud bin created & synced!');
+        return;
       }
     }
-    if (res && res.ok) setSyncStatus(msg || '✓ Done');
-    else setSyncStatus('⚠ Push failed (' + (res ? res.status : 'no response') + ')');
+    const errText = await res.text().catch(() => '');
+    setSyncStatus('⚠ Push failed (' + res.status + ') ' + errText.slice(0, 60));
   } catch(e) {
-    setSyncStatus('⚠ Network error — check connection');
+    setSyncStatus('⚠ Network error: ' + e.message);
   }
 }
 
