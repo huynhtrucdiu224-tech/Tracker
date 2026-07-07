@@ -128,6 +128,13 @@ tr.total td{background:#16283e0d;font-weight:700;border-top:2px solid var(--navy
 .sticky-tot .it{font-size:12px;opacity:.8}
 .sticky-tot .iv{font-size:15.5px;font-weight:700;font-variant-numeric:tabular-nums}
 @media print{ header .seg, nav, .toolbar, .btn, .noprint{display:none!important} body{background:#fff} .panel,.card{box-shadow:none} main{padding:0} .tab{display:none}.tab.on{display:block} }
+/* dedicated PDF report */
+#printReport{display:none;padding:24px;font-size:12px;background:#fff;color:#20242b}
+#printReport h1{font-size:20px;color:#16283e;border-bottom:3px solid #c8a557;padding-bottom:8px;margin:0 0 4px}
+#printReport h2{font-size:14px;color:#1f3a5f;margin:16px 0 6px}
+#printReport table{margin-bottom:10px;font-size:11.5px}
+#printReport th{position:static}
+@media print{ body.rpt>header,body.rpt>nav,body.rpt>main{display:none!important} body.rpt #printReport{display:block!important} }
 </style>
 </head>
 <body>
@@ -159,7 +166,9 @@ tr.total td{background:#16283e0d;font-weight:700;border-top:2px solid var(--navy
 <input type="file" id="fileAtt" multiple style="display:none">
 <input type="file" id="fileOptImg" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style="display:none">
 <input type="file" id="fileImport" accept=".json" style="display:none">
+<input type="file" id="fileLink" multiple style="display:none">
 <div class="modalbg" id="modalbg"><div class="modal" id="modal"></div></div>
+<div id="printReport"></div>
 <div id="toast"></div>
 
 <script>
@@ -211,7 +220,18 @@ en:{
  areaProj:'Project-wide', areaProjSub:'Professional fees etc.',
  fromFile:'From estimate file', manualCol:'Manual lines', areaTotal:'Area total',
  addLine:'+ Add budget line', allAreas:'ALL AREAS TOTAL',
- areaHint:'Amounts in “From estimate file” come from the active version automatically. Add manual budget lines for scopes without a QS file yet (e.g. F&B outlets) or committee-approved allowances — they are saved with your data and included in the all-areas total.'
+ areaHint:'Amounts in “From estimate file” come from the active version automatically. Add manual budget lines for scopes without a QS file yet (e.g. F&B outlets) or committee-approved allowances — they are saved with your data and included in the all-areas total.',
+ cloudT:'Cloud sync (JSONBin.io)', apiKey:'API key (X-Master-Key)', binId:'Bin ID',
+ createBin:'Create new bin', push:'Push to cloud', pull:'Pull from cloud',
+ cloudHelp:'One-time setup by the owner: free account at jsonbin.io → API Keys → copy the Master Key, paste it here, click “Create new bin”. Then share the key + Bin ID with the committee — easiest is to share one exported backup file (it contains both), which members Import once. After that everyone just presses Push / Pull. The cloud carries text + file links only; actual files live in the Attachments folder on OneDrive.',
+ lastPush:'Last push', lastPull:'Last pull', notConfigured:'Enter the API key and Bin ID in Settings first.',
+ pullConfirm:'Pull will REPLACE local versions, VE options and area budgets with the cloud copy (embedded files on this computer are kept). Continue?',
+ pushed:'Pushed to cloud', pulled:'Pulled from cloud', binCreated:'Bin created — ID saved',
+ attFolder:'Attachments folder (next to this HTML)', attFolderHint:'Keep shared files in this subfolder of the OneDrive folder containing the tracker. Linked attachments point there by relative path, so they open on every member’s computer without any setup.',
+ linkFiles:'🔗 Link files from folder', linked:'linked', embeddedF:'embedded', fileMissing:'File not found — copy it into the Attachments folder',
+ linkHint:'Copy files into the Attachments folder on OneDrive first, then pick them here — only the link is stored (tiny) and it syncs via cloud; the file itself syncs via OneDrive.',
+ reportXlsx:'⬇ Excel report', reportPdf:'🖨 PDF report',
+ repTitle:'BUDGET REPORT', repGenerated:'Generated', repVersion:'Version', repSections:'Cost summary', repPerKey:'Per key', repVeInc:'VE options included in forecast', repDrivers:'Top cost drivers', repForecast:'Forecast'
 },
 vi:{
  dash:'Tổng quan', versions:'Phiên bản', compare:'So sánh', estimate:'Dự toán', ve:'VE Studio', materials:'Vật liệu', atts:'Đính kèm', settings:'Cài đặt',
@@ -258,7 +278,18 @@ vi:{
  areaProj:'Toàn dự án', areaProjSub:'Phí tư vấn v.v.',
  fromFile:'Từ file dự toán', manualCol:'Nhập tay', areaTotal:'Tổng khu vực',
  addLine:'+ Thêm dòng ngân sách', allAreas:'TỔNG TẤT CẢ KHU VỰC',
- areaHint:'Cột “Từ file dự toán” lấy tự động từ phiên bản đang dùng. Thêm dòng nhập tay cho các phạm vi chưa có file QS (ví dụ khối F&B) hoặc các khoản đã được duyệt — dữ liệu được lưu lại và tính vào tổng tất cả khu vực.'
+ areaHint:'Cột “Từ file dự toán” lấy tự động từ phiên bản đang dùng. Thêm dòng nhập tay cho các phạm vi chưa có file QS (ví dụ khối F&B) hoặc các khoản đã được duyệt — dữ liệu được lưu lại và tính vào tổng tất cả khu vực.',
+ cloudT:'Đồng bộ cloud (JSONBin.io)', apiKey:'API key (X-Master-Key)', binId:'Bin ID',
+ createBin:'Tạo bin mới', push:'Đẩy lên cloud', pull:'Tải từ cloud',
+ cloudHelp:'Thiết lập một lần bởi trưởng nhóm: tạo tài khoản miễn phí tại jsonbin.io → API Keys → sao chép Master Key, dán vào đây, bấm “Tạo bin mới”. Sau đó chia sẻ key + Bin ID cho ban dự án — dễ nhất là chia sẻ một file sao lưu đã xuất (trong đó có sẵn cả hai) để thành viên Nhập một lần. Từ đó mọi người chỉ cần bấm Đẩy / Tải. Cloud chỉ chứa dữ liệu chữ + liên kết tệp; tệp thật nằm trong thư mục Attachments trên OneDrive.',
+ lastPush:'Đẩy lần cuối', lastPull:'Tải lần cuối', notConfigured:'Nhập API key và Bin ID trong Cài đặt trước.',
+ pullConfirm:'Tải về sẽ THAY THẾ các phiên bản, phương án VE và ngân sách khu vực bằng bản trên cloud (tệp nhúng trên máy này được giữ). Tiếp tục?',
+ pushed:'Đã đẩy lên cloud', pulled:'Đã tải từ cloud', binCreated:'Đã tạo bin — đã lưu ID',
+ attFolder:'Thư mục tệp (cạnh file HTML)', attFolderHint:'Để tệp chia sẻ trong thư mục con này của thư mục OneDrive chứa tracker. Tệp liên kết dùng đường dẫn tương đối nên mở được trên máy mọi thành viên mà không cần cài đặt gì.',
+ linkFiles:'🔗 Liên kết tệp từ thư mục', linked:'liên kết', embeddedF:'nhúng', fileMissing:'Không thấy tệp — hãy chép vào thư mục Attachments',
+ linkHint:'Chép tệp vào thư mục Attachments trên OneDrive trước, rồi chọn tại đây — chỉ lưu liên kết (rất nhẹ) và đồng bộ qua cloud; tệp thật đồng bộ qua OneDrive.',
+ reportXlsx:'⬇ Báo cáo Excel', reportPdf:'🖨 Báo cáo PDF',
+ repTitle:'BÁO CÁO NGÂN SÁCH', repGenerated:'Xuất lúc', repVersion:'Phiên bản', repSections:'Tổng hợp chi phí', repPerKey:'Chi phí mỗi phòng', repVeInc:'Phương án VE trong dự báo', repDrivers:'Hạng mục chi phí lớn nhất', repForecast:'Dự báo'
 }};
 function t(k){ return (I18N[state.lang]||I18N.en)[k] || I18N.en[k] || k; }
 
@@ -301,7 +332,8 @@ function fClear(){ return new Promise((res,rej)=>{ const tx=db.transaction('file
 
 /* ============================== state ============================== */
 let state = { lang:'en', currency:'VND', fx:26450, prelimsPct:7, contPct:0, budgetTarget:null,
-  versions:[], activeId:null, baseId:null, options:[], manualAreas:[], tab:'dash' };
+  versions:[], activeId:null, baseId:null, options:[], manualAreas:[], attDir:'Attachments',
+  cloud:{apiKey:'',binId:'',lastPush:null,lastPull:null}, tab:'dash' };
 let attCache=[]; // metadata cache of files store
 let saveT=null;
 function save(){ clearTimeout(saveT); saveT=setTimeout(()=>{ kvSet('state',JSON.parse(JSON.stringify(state))).catch(()=>{ try{localStorage.setItem('ssp_bt',JSON.stringify(state));}catch(e){} }); },350); }
@@ -507,6 +539,23 @@ function roomKeys(v,code){ if(!v||!v.rooms) return null;
   if(room&&room.gfa&&blk&&blk.gfa) return Math.round(blk.gfa/room.gfa);
   return null; }
 
+/* ============================== cloud sync (JSONBin.io) ============================== */
+async function gzipB64(str){ const cs=new CompressionStream('gzip');
+  const ab=await new Response(new Blob([str]).stream().pipeThrough(cs)).arrayBuffer();
+  const u=new Uint8Array(ab); let s2='';
+  for(let i=0;i<u.length;i+=0x8000) s2+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));
+  return btoa(s2); }
+async function gunzipB64(b64){ const bin=atob(b64); const u=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i);
+  const ds=new DecompressionStream('gzip');
+  const ab=await new Response(new Blob([u]).stream().pipeThrough(ds)).arrayBuffer();
+  return new TextDecoder().decode(ab); }
+function cloudPayload(){ const st=JSON.parse(JSON.stringify(state));
+  delete st.cloud; delete st.tab; // never publish credentials
+  const linkedAtts=attCache.filter(a=>a.rel).map(a=>({id:a.id,name:a.name,mime:a.mime,size:a.size,date:a.date,link:a.link||'',note:a.note||'',rel:a.rel}));
+  return {app:'ssp-budget-tracker',v:2,ts:new Date().toISOString(),state:st,linkedAtts}; }
+const JB='https://api.jsonbin.io/v3/b';
+
 /* ============================== charts ============================== */
 const charts={};
 function mkChart(id,cfg){ const cv=document.getElementById(id); if(!cv||typeof Chart==='undefined') return;
@@ -552,6 +601,13 @@ function renderDash(){
   if(su&&su.prevBudget&&su.prevBudget.grandTotal){ const d=grand-su.prevBudget.grandTotal;
     prevHtml=`<div class="card"><div class="lbl">${t('vsPrev')}</div><div class="val ${cls(d)}" style="font-size:18px">${sign(d)}${money(d)}</div><div class="sub">${esc(su.prevBudget.label)}</div></div>`; }
   el.innerHTML=`
+  <div class="toolbar noprint">
+    <button class="btn ghost" onclick="App.reportXlsx()">${t('reportXlsx')}</button>
+    <button class="btn ghost" onclick="App.reportPdf()">${t('reportPdf')}</button>
+    <span class="sp"></span>
+    <button class="btn ghost" onclick="App.cloudPush()">☁⬆ ${t('push')}</button>
+    <button class="btn ghost" onclick="App.cloudPull()">☁⬇ ${t('pull')}</button>
+  </div>
   <div class="cards">
     <div class="card"><div class="lbl">${t('grandTotal')}</div><div class="val">${money(grand)}</div>
       <div class="sub">${state.currency==='VND'?moneyU(grand/(v.fx||state.fx)):Math.round(grand).toLocaleString()+' VND'} · ${esc(v.name)}</div></div>
@@ -581,6 +637,40 @@ function renderDash(){
   </div>
   <div class="panel"><h3>💡 ${t('advisor')}</h3>${advisorHtml(v)}</div>`;
   drawDashCharts(v);
+}
+function buildReportHtml(v){
+  const fx=v.fx||state.fx, su=v.summary, br=areaBreakdown(v);
+  const all=AREAS.reduce((x,a)=>x+br[a.id].file+br[a.id].manual,0)||1;
+  const fc=forecastGrand(v), eD=estDelta(v)*(1+state.prelimsPct/100), vD=veDelta()*(1+state.prelimsPct/100);
+  const M=(x)=>x==null?'—':Math.round(x).toLocaleString('en-US');
+  let h=`<h1>SOFITEL SAIGON PLAZA RENOVATION — ${t('repTitle')}</h1>
+  <div style="color:#6b7280;margin-bottom:12px">${t('repVersion')}: <b>${esc(v.name)}</b> (${esc(v.date)}) · ${t('repGenerated')}: ${new Date().toLocaleString()} · FX: ${fx.toLocaleString()} VND/USD · ${t('inclPrelims')} ${state.prelimsPct}%</div>`;
+  h+=`<h2>${t('areasT')}</h2><table><tr><th>${t('name')}</th><th class="num">${t('fromFile')} (VND)</th><th class="num">${t('manualCol')}</th><th class="num">${t('areaTotal')}</th><th class="num">${t('share')}</th></tr>`;
+  for(const a of AREAS){ const b=br[a.id]; h+=`<tr><td>${t(a.k)} <span style="color:#6b7280">— ${t(a.sub)}</span></td><td class="num">${b.file?M(b.file):'—'}</td><td class="num">${b.manual?M(b.manual):'—'}</td><td class="num"><b>${M(b.file+b.manual)}</b></td><td class="num">${pct((b.file+b.manual)/all)}</td></tr>`; }
+  h+=`<tr class="total"><td>${t('allAreas')}</td><td class="num">${M(AREAS.reduce((x,a)=>x+br[a.id].file,0))}</td><td class="num">${M(AREAS.reduce((x,a)=>x+br[a.id].manual,0))}</td><td class="num">${M(all)}</td><td class="num">100%</td></tr></table>`;
+  if(su){
+    h+=`<h2>${t('repSections')}</h2><table><tr><th>${t('item')}</th><th class="num">TOTAL (VND)</th><th class="num">TOTAL (USD)</th></tr>`;
+    for(const sc of su.sections) h+=`<tr><td>${esc(sc.name)}</td><td class="num">${M(sc.subtotal)}</td><td class="num">${M((sc.subtotal||0)/fx)}</td></tr>`;
+    for(const a of su.addOns) h+=`<tr><td>${esc(a.name)}</td><td class="num">${M(a.total)}</td><td class="num">${M((a.total||0)/fx)}</td></tr>`;
+    h+=`<tr><td><b>Nett Construction Cost</b></td><td class="num"><b>${M(su.nett)}</b></td><td class="num"><b>${M((su.nett||0)/fx)}</b></td></tr>`;
+    h+=`<tr class="total"><td>TOTAL PROJECT CONSTRUCTION COST</td><td class="num">${M(su.grandTotal)}</td><td class="num">${M((su.grandTotal||0)/fx)}</td></tr></table>`;
+    h+=`<h2>${t('repForecast')}</h2><table><tr><th>${t('base')}</th><th class="num">${t('estDelta')}</th><th class="num">${t('veDelta')}</th><th class="num">${t('forecastTotal')}</th></tr>
+      <tr><td class="num">${M(su.grandTotal)}</td><td class="num">${eD?sign(eD)+M(eD):'—'}</td><td class="num">${vD?sign(vD)+M(vD):'—'}</td><td class="num"><b>${M(fc)}</b> (${M((fc||0)/fx)} USD)</td></tr></table>`;
+    const pk=su.perKey.filter(p=>p.perKeyUSD);
+    if(pk.length){ h+=`<h2>${t('repPerKey')}</h2><table><tr><th>${t('name')}</th><th class="num">TOTAL (VND)</th><th class="num">Per key (USD)</th></tr>`;
+      for(const p of pk) h+=`<tr><td>${esc(p.name)}</td><td class="num">${M(p.totalVND)}</td><td class="num">$${M(p.perKeyUSD)}</td></tr>`; h+='</table>'; }
+  }
+  const inc=state.options.filter(o=>o.include);
+  if(inc.length){ h+=`<h2>${t('repVeInc')}</h2><table><tr><th>${t('optTitle')}</th><th class="num">${t('qty')}</th><th class="num">${t('curRate')}</th><th class="num">${t('newRate')}</th><th class="num">${t('variation')}</th></tr>`;
+    for(const o of inc){ const r=veCalc(o.baseRate,o.newRate,o.qty);
+      h+=`<tr><td>${esc(o.title)}${o.study?' <span style="color:#6b7280">('+esc(o.study)+')</span>':''}</td><td class="num">${o.qty}</td><td class="num">${M(n(o.baseRate))}</td><td class="num">${M(n(o.newRate))}</td><td class="num">${sign(r.vari)}${M(r.vari)}</td></tr>`; }
+    h+='</table>'; }
+  const items=(v.items||[]).slice().sort((a,b)=>b.total-a.total).slice(0,10);
+  if(items.length){ const tot=(v.items||[]).reduce((x,i)=>x+i.total,0)||1;
+    h+=`<h2>${t('repDrivers')}</h2><table><tr><th>#</th><th>${t('item')}</th><th class="num">${t('total')} (VND)</th><th class="num">${t('share')}</th></tr>`;
+    items.forEach((it,i)=>{ h+=`<tr><td>${i+1}</td><td>${esc(it.desc)} <span style="color:#6b7280">(${esc(it.sheet)})</span></td><td class="num">${M(it.total)}</td><td class="num">${pct(it.total/tot)}</td></tr>`; });
+    h+='</table>'; }
+  return h;
 }
 function areasHtml(v){
   const br=areaBreakdown(v);
@@ -874,7 +964,8 @@ function renderVE(){
   const studies=[...new Set(state.options.map(o=>o.study||''))];
   const optsH=state.options.map(o=>{ const r=veCalc(o.baseRate,o.newRate,o.qty);
     const files=(o.files||[]).map(fid=>{ const f=attCache.find(a=>a.id===fid); if(!f) return '';
-      return f.mime&&f.mime.startsWith('image')?`<img src="${f.dataUrl}" title="${esc(f.name)}" onclick="App.viewAtt('${f.id}')">`:`<div class="fdoc" onclick="App.viewAtt('${f.id}')">${esc(f.name.slice(0,26))}</div>`; }).join('');
+      const src=f.dataUrl||esc(f.rel||'');
+      return f.mime&&f.mime.startsWith('image')?`<img src="${src}" title="${esc(f.name)}" onclick="App.viewAtt('${f.id}')" onerror="this.style.opacity=.25">`:`<div class="fdoc" onclick="App.viewAtt('${f.id}')">${esc(f.name.slice(0,26))}</div>`; }).join('');
     return `<div class="opt" style="border-left-color:${r.vari>0?'var(--red)':r.vari<0?'var(--green)':'var(--gold)'}">
     <div class="row"><div class="fld" style="flex:2"><label>${t('optTitle')}</label><input value="${esc(o.title)}" onchange="App.optEdit('${o.id}','title',this.value)"></div>
       <div class="fld"><label>${t('study')}</label><input value="${esc(o.study||'')}" list="dlStudies" onchange="App.optEdit('${o.id}','study',this.value)"></div></div>
@@ -950,19 +1041,24 @@ function renderMaterials(){
 function renderAtts(){
   const el=$('#tab-atts');
   const links=[{v:'',l:t('general')}].concat(state.options.map(o=>({v:o.id,l:'VE: '+o.title})));
-  const cards=attCache.slice().sort((a,b)=>b.date-a.date).map(f=>`
-   <div class="att"><div class="prev">${f.mime&&f.mime.startsWith('image')?`<img src="${f.dataUrl}" onclick="App.viewAtt('${f.id}')">`:'📄'}</div>
-    <div class="meta"><div class="nm">${esc(f.name)}</div>
+  const cards=attCache.slice().sort((a,b)=>b.date-a.date).map(f=>{
+   const src=f.dataUrl||esc(f.rel||'');
+   return `
+   <div class="att"><div class="prev">${f.mime&&f.mime.startsWith('image')?`<img src="${src}" onclick="App.viewAtt('${f.id}')" onerror="this.parentElement.innerHTML='⚠️'" title="${esc(f.rel||f.name)}">`:'📄'}</div>
+    <div class="meta"><div class="nm">${esc(f.name)} <span class="chip ${f.rel?'b':'n'}" title="${esc(f.rel||'')}">${f.rel?'🔗 '+t('linked'):t('embeddedF')}</span></div>
     <div style="color:var(--mut);margin-top:2px">${fsize(f.size)} · ${new Date(f.date).toLocaleDateString()}</div>
     <div class="row2"><select style="flex:1;font-size:11.5px" onchange="App.attLink('${f.id}',this.value)">
       ${links.map(L=>`<option value="${L.v}" ${(f.link||'')===L.v?'selected':''}>${esc(L.l)}</option>`).join('')}</select></div>
     <div class="row2"><input placeholder="${t('note')}…" value="${esc(f.note||'')}" style="flex:1;font-size:11.5px" onchange="App.attNote('${f.id}',this.value)"></div>
-    <div class="row2"><button class="btn sm ghost" onclick="App.downloadAtt('${f.id}')">⬇ ${t('download')}</button>
+    <div class="row2"><button class="btn sm ghost" onclick="App.downloadAtt('${f.id}')">${f.rel?'↗ '+t('download'):'⬇ '+t('download')}</button>
     <button class="btn sm danger" onclick="App.delAtt('${f.id}')">✕</button></div>
-   </div></div>`).join('');
+   </div></div>`;}).join('');
   el.innerHTML=`
   <div class="panel"><h3>📎 ${t('attT')} <span class="chip n">${attCache.length}</span></h3><div class="help">${t('attTip')}</div>
-  <div class="toolbar" style="margin-top:10px"><button class="btn gold" onclick="$('#fileAtt').click()">${t('attAdd')}</button></div>
+  <div class="toolbar" style="margin-top:10px">
+    <button class="btn gold" onclick="$('#fileLink').click()">${t('linkFiles')}</button>
+    <button class="btn ghost" onclick="$('#fileAtt').click()">${t('attAdd')}</button>
+    <span class="help">${t('linkHint')}</span></div>
   ${attCache.length?`<div class="atts">${cards}</div>`:`<div class="help">${t('noAtts')}</div>`}</div>`;
 }
 
@@ -976,6 +1072,22 @@ function renderSettings(){
     <div class="setrow"><div class="sl">${t('cont')}</div><input type="number" step="0.5" value="${state.contPct}" style="width:90px" onchange="App.set('contPct',parseFloat(this.value)||0)"></div>
     <div class="setrow"><div class="sl">${t('targetLbl')}</div><input type="number" value="${state.budgetTarget||''}" style="width:220px" onchange="App.set('budgetTarget',parseFloat(this.value)||null)">
       <div class="sd">${t('targetHint')}</div></div>
+    <div class="setrow"><div class="sl">${t('attFolder')}</div><input value="${esc(state.attDir||'Attachments')}" style="width:220px" onchange="App.set('attDir',this.value)">
+      <div class="sd">${t('attFolderHint')}</div></div>
+  </div>
+  <div class="panel"><h3>☁ ${t('cloudT')}</h3><div class="help">${t('cloudHelp')}</div>
+    <div class="setrow"><div class="sl">${t('apiKey')}</div><input type="password" value="${esc((state.cloud||{}).apiKey||'')}" style="width:340px" onchange="App.cloudSet('apiKey',this.value)"></div>
+    <div class="setrow"><div class="sl">${t('binId')}</div><input value="${esc((state.cloud||{}).binId||'')}" style="width:260px" onchange="App.cloudSet('binId',this.value)">
+      <button class="btn sm ghost" onclick="App.cloudCreate()">${t('createBin')}</button></div>
+    <div class="toolbar" style="margin-top:10px">
+      <button class="btn gold" onclick="App.cloudPush()">⬆ ${t('push')}</button>
+      <button class="btn" onclick="App.cloudPull()">⬇ ${t('pull')}</button>
+      <span class="help">${t('lastPush')}: ${(state.cloud||{}).lastPush?new Date(state.cloud.lastPush).toLocaleString():'—'} · ${t('lastPull')}: ${(state.cloud||{}).lastPull?new Date(state.cloud.lastPull).toLocaleString():'—'}</span></div>
+  </div>
+  <div class="panel"><h3>📤 ${t('reportXlsx').replace('⬇ ','')} / ${t('reportPdf').replace('🖨 ','')}</h3>
+    <div class="toolbar" style="margin-bottom:0">
+      <button class="btn" onclick="App.reportXlsx()">${t('reportXlsx')}</button>
+      <button class="btn ghost" onclick="App.reportPdf()">${t('reportPdf')}</button></div>
   </div>
   <div class="panel"><h3>💾 ${t('exportT')}</h3><div class="help">${t('exportD')}</div>
     <div class="toolbar" style="margin-top:10px"><label style="font-size:12.5px"><input type="checkbox" id="expAtts" checked> ${t('incAtts')}</label>
@@ -1093,10 +1205,105 @@ const App={
  async delAtt(id){ await fDel(id); attCache=attCache.filter(a=>a.id!==id);
    state.options.forEach(o=>{ o.files=(o.files||[]).filter(x=>x!==id); }); save(); renderAll(); },
  viewAtt(id){ const f=attCache.find(a=>a.id===id); if(!f) return;
-   if(f.mime&&f.mime.startsWith('image')) modal(`<h3>${esc(f.name)}</h3><img src="${f.dataUrl}" style="max-width:100%;border-radius:8px"><div class="help" style="margin-top:8px">${esc(f.note||'')}</div>`);
+   const src=f.dataUrl||esc(f.rel||'');
+   if(f.mime&&f.mime.startsWith('image')) modal(`<h3>${esc(f.name)}</h3><img src="${src}" style="max-width:100%;border-radius:8px" onerror="this.outerHTML='<div class=warnbox>${t('fileMissing')}</div>'"><div class="help" style="margin-top:8px">${esc(f.note||'')}</div>`);
    else App.downloadAtt(id); },
  downloadAtt(id){ const f=attCache.find(a=>a.id===id); if(!f) return;
-   const a=document.createElement('a'); a.href=f.dataUrl; a.download=f.name; a.click(); },
+   const a=document.createElement('a');
+   if(f.dataUrl){ a.href=f.dataUrl; a.download=f.name; } else { a.href=f.rel; a.target='_blank'; }
+   a.click(); },
+ // cloud sync
+ cloudSet(k,v2){ state.cloud=state.cloud||{}; state.cloud[k]=s(v2); save(); },
+ async cloudCreate(){ const c=state.cloud||{};
+   if(!c.apiKey){ toast(t('notConfigured')); return; }
+   try{ const r=await fetch(JB,{method:'POST',headers:{'Content-Type':'application/json','X-Master-Key':c.apiKey,'X-Bin-Name':'SSP-Budget-Tracker','X-Bin-Private':'true'},body:JSON.stringify({app:'ssp-budget-tracker',init:true})});
+     const j=await r.json(); if(!r.ok) throw new Error(j.message||('HTTP '+r.status));
+     c.binId=j.metadata.id; save(); renderSettings(); toast('✓ '+t('binCreated'));
+   }catch(e){ toast('✗ '+e.message); } },
+ async cloudPush(){ const c=state.cloud||{};
+   if(!c.apiKey||!c.binId){ toast(t('notConfigured')); App.go('settings'); return; }
+   try{ const js=JSON.stringify(cloudPayload());
+     const body=(typeof CompressionStream!=='undefined')?JSON.stringify({app:'ssp-bt-z',z:await gzipB64(js)}):js;
+     const r=await fetch(JB+'/'+c.binId,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':c.apiKey},body});
+     const j=await r.json(); if(!r.ok) throw new Error(j.message||('HTTP '+r.status));
+     c.lastPush=new Date().toISOString(); save();
+     if(state.tab==='settings') renderSettings();
+     toast('✓ '+t('pushed')+' ('+(body.length/1024).toFixed(0)+' KB)');
+   }catch(e){ toast('✗ Push: '+e.message); } },
+ async cloudPull(){ const c=state.cloud||{};
+   if(!c.apiKey||!c.binId){ toast(t('notConfigured')); App.go('settings'); return; }
+   if(!confirm(t('pullConfirm'))) return;
+   try{ const r=await fetch(JB+'/'+c.binId+'/latest',{headers:{'X-Master-Key':c.apiKey}});
+     const j=await r.json(); if(!r.ok) throw new Error(j.message||('HTTP '+r.status));
+     let rec=j.record;
+     if(rec&&rec.app==='ssp-bt-z'&&rec.z) rec=JSON.parse(await gunzipB64(rec.z));
+     if(!rec||rec.app!=='ssp-budget-tracker'||!rec.state) throw new Error('bin content not recognised');
+     const keep={cloud:state.cloud,lang:state.lang,tab:state.tab};
+     state=Object.assign({},state,rec.state,keep);
+     for(const a of (rec.linkedAtts||[])){ const i=attCache.findIndex(x=>x.id===a.id);
+       if(i>=0) attCache[i]=Object.assign(attCache[i],a); else attCache.push(a);
+       await fPut(attCache.find(x=>x.id===a.id)); }
+     state.cloud.lastPull=new Date().toISOString(); save(); renderAll(); toast('✓ '+t('pulled'));
+   }catch(e){ toast('✗ Pull: '+e.message); } },
+ // linked attachments (files live in the OneDrive Attachments folder; only the relative link is stored)
+ linkFilesPicked(files){ const dir=s(state.attDir||'Attachments').replace(/[\\/]+$/,'')||'Attachments';
+   for(const f of Array.from(files)){
+     attCache.push({id:uid(),name:f.name,mime:f.type||'',size:f.size||0,date:Date.now(),link:'',note:'',rel:dir+'/'+f.name});
+     fPut(attCache[attCache.length-1]); }
+   save(); renderAll(); toast('✓ '+t('saved')); },
+ // reports
+ reportXlsx(){ if(typeof XLSX==='undefined'){ toast(t('libFail')); return; }
+   const v=activeVer(); if(!v){ toast(t('needOne')); return; }
+   const fx=v.fx||state.fx; const wb=XLSX.utils.book_new();
+   const br=areaBreakdown(v); const all=AREAS.reduce((x,a)=>x+br[a.id].file+br[a.id].manual,0)||1;
+   const s1=[['SOFITEL SAIGON PLAZA RENOVATION — '+t('repTitle')],
+     [t('repVersion'),v.name,'',t('vDate'),v.date],[t('repGenerated'),new Date().toLocaleString(),'','FX (VND/USD)',fx],[],
+     [t('areasT')],[t('name'),t('fromFile')+' (VND)',t('manualCol')+' (VND)',t('areaTotal')+' (VND)',t('share')]];
+   for(const a of AREAS){ const b=br[a.id]; s1.push([t(a.k)+' — '+t(a.sub),b.file,b.manual,b.file+b.manual,(b.file+b.manual)/all]); }
+   s1.push([t('allAreas'),AREAS.reduce((x,a)=>x+br[a.id].file,0),AREAS.reduce((x,a)=>x+br[a.id].manual,0),all,1]);
+   if(v.summary){ const su=v.summary;
+     s1.push([],[t('repSections')],[t('item'),'TOTAL (VND)','TOTAL (USD)']);
+     for(const sc of su.sections) s1.push([sc.name,sc.subtotal,Math.round((sc.subtotal||0)/fx)]);
+     for(const a of su.addOns) s1.push([a.name,a.total,Math.round((a.total||0)/fx)]);
+     s1.push(['Nett Construction Cost',su.nett,Math.round((su.nett||0)/fx)]);
+     s1.push(['TOTAL PROJECT CONSTRUCTION COST',su.grandTotal,Math.round((su.grandTotal||0)/fx)]);
+     s1.push([t('forecastTotal')+' ('+t('inclPrelims')+' '+state.prelimsPct+'%)',Math.round(forecastGrand(v)||0),Math.round((forecastGrand(v)||0)/fx)]);
+     if(su.perKey.length){ s1.push([],[t('repPerKey')],[t('name'),'TOTAL (VND)','Per key (USD)']);
+       for(const p of su.perKey) s1.push([p.name,p.totalVND,p.perKeyUSD?Math.round(p.perKeyUSD):'']); } }
+   const ws1=XLSX.utils.aoa_to_sheet(s1); ws1['!cols']=[{wch:52},{wch:18},{wch:16},{wch:18},{wch:10}];
+   XLSX.utils.book_append_sheet(wb,ws1,'Summary');
+   const r2=[[t('sheet'),t('section'),'No',t('desc'),t('qty'),t('unit'),t('rate'),'Base total','Adj. qty','Adj. rate','Adj. total','Δ',t('inc')]];
+   for(const it of v.items){ const e=itemEff(v,it);
+     r2.push([it.sheet,it.category||it.group,it.no,it.desc,it.qty,it.unit,it.rate,it.total,e.qty,e.rate,e.total,e.total-it.total,e.inc?'Y':'N']); }
+   for(const ni of (v.newItems||[])){ const tt=(n(ni.qty)||0)*(n(ni.rate)||0);
+     r2.push(['(new)',ni.category,'',ni.desc,ni.qty,ni.unit,ni.rate,0,ni.qty,ni.rate,tt,tt,ni.inc!==false?'Y':'N']); }
+   const ws2=XLSX.utils.aoa_to_sheet(r2); ws2['!cols']=[{wch:20},{wch:26},{wch:6},{wch:60},{wch:10},{wch:7},{wch:12},{wch:15},{wch:9},{wch:12},{wch:15},{wch:13},{wch:5}];
+   XLSX.utils.book_append_sheet(wb,ws2,'BOQ');
+   if(state.options.length){ const r3=[[t('optTitle'),t('study'),t('qty'),t('unit'),t('curRate'),t('newRate'),t('variation')+' (VND)','Δ%',t('include'),t('notes')]];
+     for(const o of state.options){ const r=veCalc(o.baseRate,o.newRate,o.qty);
+       r3.push([o.title,o.study,o.qty,o.unit,n(o.baseRate),n(o.newRate),r.vari,r.p,o.include?'Y':'N',o.notes]); }
+     const ws3=XLSX.utils.aoa_to_sheet(r3); ws3['!cols']=[{wch:38},{wch:16},{wch:9},{wch:7},{wch:13},{wch:13},{wch:16},{wch:8},{wch:8},{wch:42}];
+     XLSX.utils.book_append_sheet(wb,ws3,'VE Options'); }
+   if((v.materials||[]).length){ const r4=[[t('ref'),t('category'),t('item'),t('area'),t('spec'),t('supplier'),t('veAlt')]];
+     for(const m of v.materials) r4.push([m.ref,m.category,m.item,m.area,m.desc,m.supplier,m.ve]);
+     const ws4=XLSX.utils.aoa_to_sheet(r4); ws4['!cols']=[{wch:9},{wch:18},{wch:18},{wch:18},{wch:46},{wch:36},{wch:18}];
+     XLSX.utils.book_append_sheet(wb,ws4,'Materials'); }
+   const base=ver(state.baseId);
+   if(base&&base.id!==v.id&&base.summary&&v.summary){
+     const r5=[[t('compare')+': A = '+base.name+' → B = '+v.name],[t('item'),'A (VND)','B (VND)',t('diff')]];
+     const mA=new Map(base.summary.sections.map(x=>[x.name,x.subtotal]));
+     for(const sc of v.summary.sections) r5.push([sc.name,mA.get(sc.name)??'',sc.subtotal,(sc.subtotal||0)-(mA.get(sc.name)||0)]);
+     r5.push(['TOTAL PROJECT',base.summary.grandTotal,v.summary.grandTotal,v.summary.grandTotal-base.summary.grandTotal]);
+     const ws5=XLSX.utils.aoa_to_sheet(r5); ws5['!cols']=[{wch:44},{wch:18},{wch:18},{wch:16}];
+     XLSX.utils.book_append_sheet(wb,ws5,'Compare'); }
+   XLSX.writeFile(wb,'SSP-Budget-Report-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'.xlsx');
+   toast('✓ Excel'); },
+ reportPdf(){ const v=activeVer(); if(!v){ toast(t('needOne')); return; }
+   document.getElementById('printReport').innerHTML=buildReportHtml(v);
+   document.body.classList.add('rpt');
+   const off=()=>document.body.classList.remove('rpt');
+   window.onafterprint=off; setTimeout(off,2000);
+   window.print(); },
  // export / import / wipe
  async exportJson(){
    const inc=$('#expAtts')?$('#expAtts').checked:true;
@@ -1110,12 +1317,14 @@ const App={
    try{ p=JSON.parse(txt); }catch(e){ toast('Invalid JSON'); return; }
    if(!p||p.app!=='ssp-budget-tracker'||!p.state){ toast('Not a tracker backup'); return; }
    if(!confirm(t('confirmImport'))) return;
-   state=Object.assign({lang:'en',currency:'VND',fx:26450,prelimsPct:7,contPct:0,budgetTarget:null,versions:[],activeId:null,baseId:null,options:[],manualAreas:[],tab:'dash'},p.state);
+   const keepCloud=state.cloud;
+   state=Object.assign({lang:'en',currency:'VND',fx:26450,prelimsPct:7,contPct:0,budgetTarget:null,versions:[],activeId:null,baseId:null,options:[],manualAreas:[],attDir:'Attachments',cloud:{apiKey:'',binId:'',lastPush:null,lastPull:null},tab:'dash'},p.state);
+   if((!state.cloud||!state.cloud.apiKey)&&keepCloud&&keepCloud.apiKey) state.cloud=keepCloud;
    await fClear(); attCache=[];
    for(const f of (p.attachments||[])){ await fPut(f); attCache.push(f); }
    save(); renderAll(); toast('✓ '+t('importBtn')); },
  async wipe(){ if(!confirm(t('confirmWipe'))) return;
-   state={lang:state.lang,currency:'VND',fx:26450,prelimsPct:7,contPct:0,budgetTarget:null,versions:[],activeId:null,baseId:null,options:[],manualAreas:[],tab:'dash'};
+   state={lang:state.lang,currency:'VND',fx:26450,prelimsPct:7,contPct:0,budgetTarget:null,versions:[],activeId:null,baseId:null,options:[],manualAreas:[],attDir:'Attachments',cloud:{apiKey:'',binId:'',lastPush:null,lastPull:null},tab:'dash'};
    await fClear(); attCache=[]; save(); renderAll(); }
 };
 window.App=App; window.closeModal=closeModal; window.qc=qc; window.$=$; window.__state=()=>state;
@@ -1125,6 +1334,7 @@ $('#fileXlsx').addEventListener('change',e=>{ const f=e.target.files[0]; e.targe
 $('#fileAtt').addEventListener('change',e=>{ App.addAttFiles(e.target.files,''); e.target.value=''; });
 $('#fileOptImg').addEventListener('change',e=>{ App.addAttFiles(e.target.files,window.__optTarget); e.target.value=''; });
 $('#fileImport').addEventListener('change',e=>{ const f=e.target.files[0]; e.target.value=''; if(f) App.importJson(f); });
+$('#fileLink').addEventListener('change',e=>{ App.linkFilesPicked(e.target.files); e.target.value=''; });
 $('#curSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b){ state.currency=b.dataset.cur; save(); renderAll(); } });
 $('#langSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b){ state.lang=b.dataset.lang; save(); renderAll(); } });
 
