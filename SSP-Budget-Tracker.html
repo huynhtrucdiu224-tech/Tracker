@@ -156,6 +156,7 @@ tr.total td{background:#16283e0d;font-weight:700;border-top:2px solid var(--navy
   <section class="tab" id="tab-dash"></section>
   <section class="tab" id="tab-versions"></section>
   <section class="tab" id="tab-compare"></section>
+  <section class="tab" id="tab-rates"></section>
   <section class="tab" id="tab-estimate"></section>
   <section class="tab" id="tab-ve"></section>
   <section class="tab" id="tab-materials"></section>
@@ -170,6 +171,7 @@ tr.total td{background:#16283e0d;font-weight:700;border-top:2px solid var(--navy
 <input type="file" id="fileLink" multiple style="display:none">
 <input type="file" id="fileLedger" accept=".xlsx,.xls" style="display:none">
 <input type="file" id="fileContracts" accept=".xlsx,.xls" style="display:none">
+<input type="file" id="fileQuote" accept=".xlsx,.xls" multiple style="display:none">
 <div class="modalbg" id="modalbg"><div class="modal" id="modal"></div></div>
 <div id="printReport"></div>
 <div id="toast"></div>
@@ -247,7 +249,12 @@ en:{
  compT:'Budget composition', vsRef:'Δ vs', refAuto:'auto (baseline / previous)', chartLabels:'Labels', labelCode:'Code', labelName:'Name',
  comboChart:'Cost by room category — total & per key',
  cloudEnable:'Use cloud sync', cloudEnableHint:'When off, the Push/Pull buttons are hidden on all tabs (settings here stay).',
- exportTab:'⬇ Excel', printTab:'🖨 PDF'
+ exportTab:'⬇ Excel', printTab:'🖨 PDF',
+ rates:'Rate Studio', ratesT:'Rate Studio — unit price evaluation', ratesTip:'Import contractor quotations (Contract BOQ .xlsx). Unit rates are auto-matched to the QS estimate (active version) and across contractors by category + description + unit. Where the same description exists with different QS rates, the row is flagged “ambiguous” — pick the right QS line yourself. Rows a contractor did not price stay blank; nothing is invented.',
+ impQuote:'⬆ Import quotation', srcCol:'rate', qsRate:'QS rate', bestVs:'Best vs QS', srcs:'Quotations', matchedRows:'Rows matched to QS', avgVsQs:'Weighted vs QS', potSaving:'Potential saving (best rates × QS qty)', potOverrun:'Exposure (rates above QS × QS qty)',
+ onlyQs:'Only rows with QS match', onlyAll:'Priced by every quotation', ambiguous:'ambiguous', resolveQs:'Pick QS line…', noQs:'— no QS match —', toVE:'→ VE', veMade:'VE option created', delSrc:'Remove this quotation?',
+ noQuotes:'No quotations imported yet. Import the contractor Contract BOQ files to start comparing.', ratePairs:'priced items', avgNote:'Σ(quoted rate × QS qty) ÷ Σ(QS rate × QS qty) − 1, over matched rows only',
+ cheaper:'cheaper', pricier:'pricier'
 },
 vi:{
  dash:'Tổng quan', versions:'Phiên bản', compare:'So sánh', estimate:'Dự toán', ve:'VE Studio', materials:'Vật liệu', atts:'Đính kèm', settings:'Cài đặt',
@@ -318,7 +325,12 @@ vi:{
  compT:'Cơ cấu ngân sách', vsRef:'Δ so với', refAuto:'tự động (bản gốc / bản trước)', chartLabels:'Nhãn', labelCode:'Mã', labelName:'Tên phòng',
  comboChart:'Chi phí theo loại phòng — tổng & mỗi phòng',
  cloudEnable:'Dùng đồng bộ cloud', cloudEnableHint:'Khi tắt, nút Đẩy/Tải sẽ ẩn trên mọi thẻ (phần cài đặt này vẫn hiện).',
- exportTab:'⬇ Excel', printTab:'🖨 PDF'
+ exportTab:'⬇ Excel', printTab:'🖨 PDF',
+ rates:'Rate Studio', ratesT:'Rate Studio — đánh giá đơn giá', ratesTip:'Nhập báo giá nhà thầu (Contract BOQ .xlsx). Đơn giá được tự khớp với dự toán QS (phiên bản đang dùng) và giữa các nhà thầu theo hạng mục + mô tả + đơn vị. Nếu cùng mô tả nhưng dự toán QS có nhiều đơn giá khác nhau, dòng sẽ gắn nhãn “chưa rõ” — bạn tự chọn dòng QS đúng. Hạng mục nhà thầu không báo giá sẽ để trống; không suy diễn số liệu.',
+ impQuote:'⬆ Nhập báo giá', srcCol:'đơn giá', qsRate:'Đơn giá QS', bestVs:'Tốt nhất so QS', srcs:'Báo giá', matchedRows:'Dòng khớp với QS', avgVsQs:'Bình quân gia quyền so QS', potSaving:'Tiết kiệm tiềm năng (giá tốt nhất × KL QS)', potOverrun:'Rủi ro vượt (giá cao hơn QS × KL QS)',
+ onlyQs:'Chỉ dòng khớp QS', onlyAll:'Mọi báo giá đều có giá', ambiguous:'chưa rõ', resolveQs:'Chọn dòng QS…', noQs:'— không khớp QS —', toVE:'→ VE', veMade:'Đã tạo phương án VE', delSrc:'Xóa báo giá này?',
+ noQuotes:'Chưa có báo giá. Hãy nhập file Contract BOQ của nhà thầu để bắt đầu so sánh.', ratePairs:'hạng mục có giá', avgNote:'Σ(giá báo × KL QS) ÷ Σ(giá QS × KL QS) − 1, chỉ tính các dòng khớp',
+ cheaper:'rẻ hơn', pricier:'đắt hơn'
 }};
 function t(k){ return (I18N[state.lang]||I18N.en)[k] || I18N.en[k] || k; }
 
@@ -364,7 +376,8 @@ const PAY_KW_DEFAULT='airfare, air ticket, sidecheck, side check, dinner, lunch,
 let state = { lang:'en', currency:'VND', fx:26450, prelimsPct:7, contPct:0, budgetTarget:null,
   versions:[], activeId:null, baseId:null, options:[], manualAreas:[], attDir:'Attachments',
   cloud:{apiKey:'',binId:'',lastPush:null,lastPull:null}, cloudEnabled:true, roomLabel:'code', compRef:'auto',
-  payments:null, contracts:[], payKeywords:PAY_KW_DEFAULT, payOverrides:{}, showInternal:false, tab:'dash' };
+  payments:null, contracts:[], payKeywords:PAY_KW_DEFAULT, payOverrides:{}, showInternal:false,
+  quotes:[], rateLinks:{}, tab:'dash' };
 let attCache=[]; // metadata cache of files store
 let saveT=null;
 function save(){ clearTimeout(saveT); saveT=setTimeout(()=>{ kvSet('state',JSON.parse(JSON.stringify(state))).catch(()=>{ try{localStorage.setItem('ssp_bt',JSON.stringify(state));}catch(e){} }); },350); }
@@ -570,6 +583,89 @@ function roomKeys(v,code){ if(!v||!v.rooms) return null;
   if(room&&room.gfa&&blk&&blk.gfa) return Math.round(blk.gfa/room.gfa);
   return null; }
 
+/* ============================== rate studio (contractor quotations) ============================== */
+function parseQuote(wb,fileName){
+  const items=[]; const sheets=[];
+  for(const nm of wb.SheetNames){
+    if(/cover|summary|material|prelim/i.test(nm)) continue;
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[nm],{header:1,raw:true,defval:null});
+    let hr=-1;
+    for(let i=0;i<15;i++){ const r=rows[i]||[]; if(norm(r[0])==='item'&&r.some(c=>norm(c)==='quantity')){ hr=i; break; } }
+    if(hr<0) continue;
+    const H=rows[hr], S=rows[hr+1]||[];
+    const cQty=colOf(H,c=>norm(c)==='quantity'), cUnit=colOf(H,c=>norm(c)==='unit');
+    const cSup=colOf(S,c=>norm(c)==='supply'), cIns=colOf(S,c=>norm(c)==='install'), cRate=colOf(S,c=>norm(c)==='total rate');
+    const cAmt=colOf(H,c=>norm(c).startsWith('amount'));
+    let cat='',sub='';
+    for(let i=hr+2;i<rows.length;i++){ const r=rows[i]||[];
+      const no=s(r[0]); const d1=s(r[1]), d3=s(r[3])||s(r[2]);
+      const qty=n(r[cQty]);
+      if(!no&&d1&&!d3&&qty==null){ cat=d1; sub=''; continue; }
+      if(!no&&d3&&qty==null&&n(r[cRate])==null&&(cAmt<0||n(r[cAmt])==null)){
+        if(d3.length<80&&!/^we hereby|^notwithstanding|^the contractor|^allow /i.test(d3)) sub=d3;
+        continue; }
+      if(!/^[A-Z]{1,2}$|^\d+(\.\d+)?$/.test(no)) continue;
+      const desc=d3||d1; if(!desc) continue;
+      const sup=n(r[cSup]), ins=n(r[cIns]); let rate=n(r[cRate]);
+      if(rate==null&&(sup!=null||ins!=null)) rate=(sup||0)+(ins||0);
+      const amt=cAmt>=0?n(r[cAmt]):null;
+      const remark=(cAmt>=0&&amt==null&&s(r[cAmt]))?s(r[cAmt]):s(r[cAmt+1]);
+      items.push({sheet:nm,cat,sub,no,desc,qty,unit:s(r[cUnit]),supply:sup,install:ins,rate,amount:amt,remark});
+    }
+    sheets.push(nm);
+  }
+  if(!items.length) return null;
+  return {id:uid(),name:(fileName||'Quote').replace(/\.(xlsx|xls)$/i,''),file:fileName||'',importedAt:new Date().toISOString(),sheets,items};
+}
+/* QS matching: category+desc+unit → desc+unit → desc; distinct QS rates ⇒ ambiguous (user resolves) */
+function qsRateIndex(v){
+  const map={};
+  for(const it of ((v||{}).items)||[]){ if(it.rate==null||!(it.rate>0)) continue;
+    const d=norm(it.desc), u=norm(it.unit);
+    for(const k of [norm(it.category)+'||'+d+'||'+u, '*||'+d+'||'+u, '*||'+d+'||*']) (map[k]=map[k]||[]).push(it); }
+  return map;
+}
+function findQs(map,cat,desc,unit){
+  for(const k of [norm(cat)+'||'+norm(desc)+'||'+norm(unit), '*||'+norm(desc)+'||'+norm(unit), '*||'+norm(desc)+'||*']){
+    const list=map[k];
+    if(list&&list.length){ const rates=[...new Set(list.map(x=>Math.round(x.rate)))];
+      return {item:list[0],candidates:list,ambiguous:rates.length>1}; } }
+  return null;
+}
+function rateRows(){ // grid rows grouped across quotations; QS from active version
+  const v=activeVer(); const map=qsRateIndex(v);
+  const qsById={}; for(const it of ((v||{}).items)||[]) qsById[it.id]=it;
+  const groups=new Map();
+  state.quotes.forEach(qt=>{ qt.items.forEach((it,idx)=>{
+    if(it.rate==null||!(it.rate>0)) return;
+    const g=norm(it.cat)+'||'+norm(it.desc)+'||'+norm(it.unit);
+    if(!groups.has(g)) groups.set(g,{key:g,cat:it.cat,sub:it.sub,desc:it.desc,unit:it.unit,per:{},qs:undefined});
+    const row=groups.get(g);
+    if(!(qt.id in row.per)) row.per[qt.id]={rate:it.rate,qty:it.qty,remark:it.remark,idx};
+    if(row.qs===undefined){
+      const ov=(state.rateLinks||{})[g];
+      if(ov==='none') row.qs=null;
+      else if(ov&&qsById[ov]) row.qs={item:qsById[ov],candidates:[qsById[ov]],ambiguous:false,manual:true};
+      else row.qs=findQs(map,it.cat,it.desc,it.unit);
+    }
+  }); });
+  return [...groups.values()];
+}
+function rateStats(rows){
+  const per={}; let saving=0, exposure=0, matched=0;
+  for(const qt of state.quotes) per[qt.id]={num:0,den:0,n:0};
+  for(const r of rows){ if(!r.qs||r.qs.ambiguous) continue;
+    const qsRate=r.qs.item.rate, qsQty=r.qs.item.qty;
+    if(!(qsRate>0)) continue;
+    matched++;
+    const quoted=Object.values(r.per).map(x=>x.rate).filter(x=>x>0);
+    if(quoted.length&&qsQty>0){ const best=Math.min(...quoted);
+      if(best<qsRate) saving+=(qsRate-best)*qsQty; else exposure+=(best-qsRate)*qsQty; }
+    for(const qt of state.quotes){ const p=r.per[qt.id];
+      if(p&&p.rate>0&&qsQty>0){ per[qt.id].num+=p.rate*qsQty; per[qt.id].den+=qsRate*qsQty; per[qt.id].n++; } } }
+  return {per,saving,exposure,matched};
+}
+
 /* ============================== payments (accounting ledger) ============================== */
 const ACC_NAMES={'1111':'Cash','11212':'Bank','1331':'VAT deductible','2412':'CIP — Construction','2413':'CIP — Major repair','2414':'CIP — Upgrade/renovation','3311':'Payables (suppliers)','33518':'Other accruals','33888':'Other payable','3341':'Employee payable','3386':'Unemployment ins.','3383':'Social ins.','3384':'Health ins.','64217':'Travel expenses','64276':'Entertainment','64282':'Non-capitalized PIP costs','64288':'Other cash costs','64273':'Post & telecom','64278':'Other services','6421':'Employee cost'};
 function accName(code){ return ACC_NAMES[code]?code+' · '+ACC_NAMES[code]:code; }
@@ -683,7 +779,7 @@ function mkChart(id,cfg){ const cv=document.getElementById(id); if(!cv||typeof C
 const PAL=['#1f3a5f','#c8a557','#3e7c8f','#7d5a8c','#b05c50','#5b8c5a','#8a8f5a','#5a6f8c','#a5744f','#4f7ea5','#6b5a8c','#8c5a6b','#4a8c7a','#8c7a4a'];
 
 /* ============================== render: shell ============================== */
-const TABS=[['dash','dash'],['versions','versions'],['compare','compare'],['estimate','estimate'],['ve','ve'],['materials','materials'],['pay','pay'],['atts','atts'],['settings','settings']];
+const TABS=[['dash','dash'],['versions','versions'],['compare','compare'],['rates','rates'],['estimate','estimate'],['ve','ve'],['materials','materials'],['pay','pay'],['atts','atts'],['settings','settings']];
 function renderNav(){
   $('#nav').innerHTML=TABS.map(([id,k])=>`<button class="${state.tab===id?'on':''}" onclick="App.go('${id}')">${t(k)}</button>`).join('');
   document.querySelectorAll('#curSeg button').forEach(b=>b.classList.toggle('on',b.dataset.cur===state.currency));
@@ -694,7 +790,7 @@ function renderNav(){
   const el=$('#tab-'+state.tab); if(el) el.classList.add('on');
 }
 function renderAll(){ renderNav();
-  ({dash:renderDash,versions:renderVersions,compare:renderCompare,estimate:renderEstimate,ve:renderVE,materials:renderMaterials,pay:renderPay,atts:renderAtts,settings:renderSettings})[state.tab]();
+  ({dash:renderDash,versions:renderVersions,compare:renderCompare,rates:renderRates,estimate:renderEstimate,ve:renderVE,materials:renderMaterials,pay:renderPay,atts:renderAtts,settings:renderSettings})[state.tab]();
 }
 
 /* ============================== render: dashboard ============================== */
@@ -1242,6 +1338,80 @@ function renderMaterials(){
   </div>`;
 }
 
+/* ============================== render: rate studio ============================== */
+let rateState={q:'',cat:'__all',onlyQs:false,onlyAll:false};
+function renderRates(){
+  const el=$('#tab-rates'); const v=activeVer();
+  const head=`<div class="panel"><h3>⚖ ${t('ratesT')}
+    <span style="margin-left:auto" class="noprint">
+      <button class="btn sm ghost" onclick="App.tabXlsx()">${t('exportTab')}</button>
+      <button class="btn sm ghost" onclick="App.tabPdf()">${t('printTab')}</button></span></h3>
+    <div class="help">${t('ratesTip')}</div>
+    <div class="toolbar" style="margin-top:10px">
+      <button class="btn gold" onclick="$('#fileQuote').click()">${t('impQuote')}</button>
+      ${state.quotes.map(q=>`<span class="chip b" title="${esc(q.file)} · ${q.items.length} items">${esc(q.name.slice(0,34))}
+        <span style="cursor:pointer;margin-left:4px" onclick="App.quoteDel('${q.id}')">✕</span></span>`).join('')}
+    </div></div>`;
+  if(!state.quotes.length){ el.innerHTML=head+`<div class="panel"><div class="help">${t('noQuotes')}</div></div>`; return; }
+  const rows=rateRows(); const st2=rateStats(rows);
+  const cards=`<div class="cards">
+    <div class="card"><div class="lbl">${t('srcs')}</div><div class="val">${state.quotes.length}</div>
+      <div class="sub">${state.quotes.map(q=>q.items.filter(i=>i.rate>0).length+' '+t('ratePairs')).join(' · ')}</div></div>
+    <div class="card"><div class="lbl">${t('matchedRows')}</div><div class="val">${st2.matched}</div><div class="sub">${rows.length} rows</div></div>
+    ${state.quotes.map(q=>{ const p=st2.per[q.id]; const d=p&&p.den?(p.num/p.den-1):null;
+      return `<div class="card"><div class="lbl">${esc(q.name.slice(0,26))} — ${t('avgVsQs')}</div>
+      <div class="val ${d==null?'':cls(d)}" style="font-size:19px">${d==null?'—':sign(d)+pct(d)}</div>
+      <div class="sub">${p?p.n+' '+t('ratePairs'):''} · ${t('avgNote')}</div></div>`; }).join('')}
+    <div class="card"><div class="lbl">${t('potSaving')}</div><div class="val neg" style="font-size:19px">−${money(st2.saving)}</div></div>
+    <div class="card"><div class="lbl">${t('potOverrun')}</div><div class="val pos" style="font-size:19px">+${money(st2.exposure)}</div></div>
+  </div>`;
+  // filters
+  const cats=[...new Set(rows.map(r=>r.cat).filter(Boolean))];
+  let list=rows;
+  if(rateState.cat!=='__all') list=list.filter(r=>r.cat===rateState.cat);
+  if(rateState.q) list=list.filter(r=>norm(r.desc+' '+r.cat+' '+r.sub).includes(norm(rateState.q)));
+  if(rateState.onlyQs) list=list.filter(r=>r.qs&&!r.qs.ambiguous);
+  if(rateState.onlyAll) list=list.filter(r=>state.quotes.every(q=>r.per[q.id]));
+  // table
+  const srcHdr=state.quotes.map(q=>`<th class="num">${esc(q.name.slice(0,22))}<div style="font-weight:400;font-size:10px">${t('srcCol')}</div></th>`).join('');
+  let html='',lastCat='';
+  for(const r of list.slice(0,700)){
+    if(r.cat!==lastCat){ lastCat=r.cat; html+=`<tr class="sect"><td colspan="${5+state.quotes.length}">${esc(r.cat||'—')}</td></tr>`; }
+    const qsRate=(r.qs&&!r.qs.ambiguous)?r.qs.item.rate:null;
+    const quoted=Object.values(r.per).map(x=>x.rate).filter(x=>x>0);
+    const best=quoted.length?Math.min(...quoted):null;
+    let qsCell;
+    if(r.qs&&r.qs.ambiguous){
+      qsCell=`<span class="chip a">${t('ambiguous')}</span><br><select style="font-size:10.5px;max-width:150px" class="noprint" onchange="App.rateLink('${btoa(encodeURIComponent(r.key))}',this.value)">
+        <option value="">${t('resolveQs')}</option>
+        ${r.qs.candidates.map(c2=>`<option value="${c2.id}">${money(c2.rate,'VND')} · ${esc(c2.sheet.slice(0,16))}</option>`).join('')}
+        <option value="none">${t('noQs')}</option></select>`;
+    } else if(qsRate!=null){ qsCell=money(qsRate)+(r.qs.manual?' <span class="chip n">✎</span>':''); }
+    else qsCell=`<span style="color:var(--mut)">—</span>`;
+    const srcCells=state.quotes.map(q=>{ const p=r.per[q.id];
+      if(!p||!(p.rate>0)) return `<td class="num" style="color:var(--mut)">—</td>`;
+      let dd=''; if(qsRate>0){ const dp=p.rate/qsRate-1; dd=`<div style="font-size:10.5px" class="${cls(dp)}">${sign(dp)}${pct(dp)}</div>`; }
+      return `<td class="num" style="${best!=null&&p.rate===best&&quoted.length>1?'background:var(--greenbg)':''}"><b>${money(p.rate)}</b>${dd}${p.remark?`<div style="font-size:10px;color:var(--mut)" title="${esc(p.remark)}">${esc(p.remark.slice(0,18))}</div>`:''}</td>`; }).join('');
+    const bestVs=(qsRate>0&&best!=null)?(best/qsRate-1):null;
+    html+=`<tr><td>${esc(r.desc)}${r.sub?`<div style="font-size:11px;color:var(--mut)">${esc(r.sub)}</div>`:''}</td>
+      <td>${esc(r.unit)}</td>
+      <td class="num">${qsCell}</td>
+      ${srcCells}
+      <td class="num ${bestVs==null?'':cls(bestVs)}">${bestVs==null?'—':sign(bestVs)+pct(bestVs)}</td>
+      <td class="noprint">${qsRate>0&&best!=null?`<button class="btn sm ghost" title="${t('toVE')}" onclick="App.rateToVE('${btoa(encodeURIComponent(r.key))}')">${t('toVE')}</button>`:''}</td></tr>`;
+  }
+  el.innerHTML=head+cards+`
+  <div class="panel"><div class="toolbar">
+    <select onchange="App.rateSet('cat',this.value)"><option value="__all">${t('all')}</option>${cats.map(c2=>`<option ${rateState.cat===c2?'selected':''}>${esc(c2)}</option>`).join('')}</select>
+    <input id="rateQ" placeholder="${t('search')}" value="${esc(rateState.q)}" oninput="App.rateSet('q',this.value)" style="width:220px">
+    <label style="font-size:12px"><input type="checkbox" ${rateState.onlyQs?'checked':''} onchange="App.rateSet('onlyQs',this.checked)"> ${t('onlyQs')}</label>
+    <label style="font-size:12px"><input type="checkbox" ${rateState.onlyAll?'checked':''} onchange="App.rateSet('onlyAll',this.checked)"> ${t('onlyAll')}</label>
+    <span class="chip n">${list.length}</span></div>
+  <div class="tblwrap" style="max-height:64vh"><table><thead><tr>
+    <th style="min-width:260px">${t('desc')}</th><th>${t('unit')}</th><th class="num">${t('qsRate')}</th>${srcHdr}<th class="num">${t('bestVs')}</th><th class="noprint"></th></tr></thead>
+    <tbody>${html}</tbody></table></div></div>`;
+}
+
 /* ============================== render: payments ============================== */
 let payState={q:'',cat:'__all'};
 function renderPay(){
@@ -1554,6 +1724,31 @@ const App={
      attCache.push({id:uid(),name:f.name,mime:f.type||'',size:f.size||0,date:Date.now(),link:'',note:'',rel:dir+'/'+f.name});
      fPut(attCache[attCache.length-1]); }
    save(); renderAll(); toast('✓ '+t('saved')); },
+ // rate studio
+ rateSet(k,v2){ rateState[k]=v2; if(k==='q'){ debounceRender(renderRates); } else renderRates(); },
+ readQuoteFiles(files){ if(typeof XLSX==='undefined'){ toast(t('libFail')); return; }
+   for(const file of Array.from(files)){
+     const rd=new FileReader();
+     rd.onload=e=>{ try{ const wb=XLSX.read(e.target.result,{type:'array'});
+       const q=parseQuote(wb,file.name);
+       if(!q){ toast('✗ '+file.name+': BOQ layout not recognised'); return; }
+       state.quotes=state.quotes.filter(x=>norm(x.file)!==norm(q.file)); // re-import replaces
+       state.quotes.push(q); save(); renderRates();
+       toast('✓ '+q.name.slice(0,40)+' — '+q.items.filter(i=>i.rate>0).length+' '+t('ratePairs'));
+     }catch(err){ toast('✗ '+err.message); } };
+     rd.readAsArrayBuffer(file); } },
+ quoteDel(id){ if(!confirm(t('delSrc'))) return; state.quotes=state.quotes.filter(q=>q.id!==id); save(); renderRates(); },
+ rateLink(b64,val){ const key=decodeURIComponent(atob(b64)); state.rateLinks=state.rateLinks||{};
+   if(val) state.rateLinks[key]=val; else delete state.rateLinks[key];
+   save(); renderRates(); },
+ rateToVE(b64){ const key=decodeURIComponent(atob(b64));
+   const r=rateRows().find(x=>x.key===key); if(!r||!r.qs||r.qs.ambiguous) return;
+   const quoted=Object.values(r.per).map(x=>x.rate).filter(x=>x>0);
+   if(!quoted.length) return;
+   state.options.unshift({id:uid(),title:r.desc.slice(0,80),study:'Rate Studio',qty:r.qs.item.qty||1,unit:r.unit,
+     baseRate:r.qs.item.rate,newRate:Math.min(...quoted),notes:'Quoted: '+state.quotes.map(q=>{const p=r.per[q.id];return p?q.name.slice(0,18)+'='+Math.round(p.rate).toLocaleString():null;}).filter(Boolean).join(' | '),
+     include:false,files:[]});
+   save(); toast('✓ '+t('veMade')); },
  // payments
  paySet(k,v2){ payState[k]=v2; if(k==='q'){ debounceRender(renderPay); } else renderPay(); },
  togglePayInternal(){ state.showInternal=!state.showInternal; save(); renderPay(); },
@@ -1605,6 +1800,17 @@ const App={
      const aoa=[[t('vName'),t('vDate'),t('vFile'),t('vTotal')+' (VND)','USD',t('vNote')]];
      for(const x of vs) aoa.push([x.name,x.date,x.fileName,grandOf(x),Math.round((grandOf(x)||0)/(x.fx||state.fx)),x.note]);
      add('Versions',aoa,[{wch:34},{wch:12},{wch:38},{wch:18},{wch:12},{wch:28}]);
+   } else if(state.tab==='rates'&&state.quotes.length){ const rows=rateRows();
+     const aoa=[[t('ratesT')+' — '+t('repVersion')+': '+(v?v.name:'—')],
+       [t('category'),t('desc'),t('unit'),t('qsRate')+' (VND)','QS '+t('qty')].concat(state.quotes.map(q=>q.name.slice(0,28))).concat([t('bestVs')])];
+     for(const r of rows){ const qsOk=r.qs&&!r.qs.ambiguous;
+       const qsRate=qsOk?r.qs.item.rate:null;
+       const quoted=Object.values(r.per).map(x=>x.rate).filter(x=>x>0);
+       const best=quoted.length?Math.min(...quoted):null;
+       aoa.push([r.cat,r.desc,r.unit,qsRate!=null?qsRate:(r.qs&&r.qs.ambiguous?'AMBIGUOUS':''),qsOk?r.qs.item.qty:'']
+         .concat(state.quotes.map(q=>{ const p=r.per[q.id]; return p&&p.rate>0?p.rate:''; }))
+         .concat([qsRate>0&&best!=null?best/qsRate-1:''])); }
+     add('Rates',aoa,[{wch:26},{wch:56},{wch:7},{wch:13},{wch:9}].concat(state.quotes.map(()=>({wch:15}))).concat([{wch:10}]));
    } else if(state.tab==='pay'&&state.payments){ const D=payData();
      const a1=[[t('payT')],[t('asOf'),state.payments.period,t('importedOn'),state.payments.importedAt,state.showInternal?'':t('internalNote')],[],
        [t('paidTotal'),D.total],[t('paidNet'),D.net],[t('vatPaid'),D.vat]];
@@ -1694,13 +1900,13 @@ const App={
    if(!p||p.app!=='ssp-budget-tracker'||!p.state){ toast('Not a tracker backup'); return; }
    if(!confirm(t('confirmImport'))) return;
    const keepCloud=state.cloud;
-   state=Object.assign({lang:'en',currency:'VND',fx:26450,prelimsPct:7,contPct:0,budgetTarget:null,versions:[],activeId:null,baseId:null,options:[],manualAreas:[],attDir:'Attachments',cloud:{apiKey:'',binId:'',lastPush:null,lastPull:null},cloudEnabled:true,roomLabel:'code',compRef:'auto',payments:null,contracts:[],payKeywords:PAY_KW_DEFAULT,payOverrides:{},showInternal:false,tab:'dash'},p.state);
+   state=Object.assign({lang:'en',currency:'VND',fx:26450,prelimsPct:7,contPct:0,budgetTarget:null,versions:[],activeId:null,baseId:null,options:[],manualAreas:[],attDir:'Attachments',cloud:{apiKey:'',binId:'',lastPush:null,lastPull:null},cloudEnabled:true,roomLabel:'code',compRef:'auto',payments:null,contracts:[],payKeywords:PAY_KW_DEFAULT,payOverrides:{},showInternal:false,quotes:[],rateLinks:{},tab:'dash'},p.state);
    if((!state.cloud||!state.cloud.apiKey)&&keepCloud&&keepCloud.apiKey) state.cloud=keepCloud;
    await fClear(); attCache=[];
    for(const f of (p.attachments||[])){ await fPut(f); attCache.push(f); }
    save(); renderAll(); toast('✓ '+t('importBtn')); },
  async wipe(){ if(!confirm(t('confirmWipe'))) return;
-   state={lang:state.lang,currency:'VND',fx:26450,prelimsPct:7,contPct:0,budgetTarget:null,versions:[],activeId:null,baseId:null,options:[],manualAreas:[],attDir:'Attachments',cloud:{apiKey:'',binId:'',lastPush:null,lastPull:null},cloudEnabled:true,roomLabel:'code',compRef:'auto',payments:null,contracts:[],payKeywords:PAY_KW_DEFAULT,payOverrides:{},showInternal:false,tab:'dash'};
+   state={lang:state.lang,currency:'VND',fx:26450,prelimsPct:7,contPct:0,budgetTarget:null,versions:[],activeId:null,baseId:null,options:[],manualAreas:[],attDir:'Attachments',cloud:{apiKey:'',binId:'',lastPush:null,lastPull:null},cloudEnabled:true,roomLabel:'code',compRef:'auto',payments:null,contracts:[],payKeywords:PAY_KW_DEFAULT,payOverrides:{},showInternal:false,quotes:[],rateLinks:{},tab:'dash'};
    await fClear(); attCache=[]; save(); renderAll(); }
 };
 window.App=App; window.closeModal=closeModal; window.qc=qc; window.$=$; window.__state=()=>state;
@@ -1713,6 +1919,7 @@ $('#fileImport').addEventListener('change',e=>{ const f=e.target.files[0]; e.tar
 $('#fileLink').addEventListener('change',e=>{ App.linkFilesPicked(e.target.files); e.target.value=''; });
 $('#fileLedger').addEventListener('change',e=>{ const f=e.target.files[0]; e.target.value=''; if(f) App.readLedgerFile(f); });
 $('#fileContracts').addEventListener('change',e=>{ const f=e.target.files[0]; e.target.value=''; if(f) App.readContractsFile(f); });
+$('#fileQuote').addEventListener('change',e=>{ App.readQuoteFiles(e.target.files); e.target.value=''; });
 $('#curSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b){ state.currency=b.dataset.cur; save(); renderAll(); } });
 $('#langSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b){ state.lang=b.dataset.lang; save(); renderAll(); } });
 
