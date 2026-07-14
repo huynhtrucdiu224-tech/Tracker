@@ -327,6 +327,7 @@ const ROUTES = [
   { hash: '#/memos', section: 'sec_memo', label: 'nav_memos', show: () => hasPerm('memo', 'view'), render: pageMemos },
   { hash: '#/sops', section: 'sec_memo', label: 'nav_sops', show: () => hasPerm('memo', 'view'), render: pageSops },
   { hash: '#/admin/users', section: 'sec_admin', label: 'nav_users', show: () => S.profile?.is_admin, render: pageUsers },
+  { hash: '#/admin/orgchart', section: 'sec_admin', label: 'nav_orgchart', show: () => S.profile?.is_admin, render: pageOrgChart },
   { hash: '#/admin/roles', section: 'sec_admin', label: 'nav_roles', show: () => S.profile?.is_admin, render: pageRoles },
   { hash: '#/admin/sources', section: 'sec_admin', label: 'nav_sources', show: () => hasPerm('legal', 'review'), render: pageSources },
   { hash: '#/admin/audit', section: 'sec_admin', label: 'nav_audit', show: () => S.profile?.is_admin, render: pageAudit },
@@ -813,11 +814,15 @@ async function pageMemos(tab = 'all') {
   html += `<div class="flex flex-wrap items-center gap-2 mb-4">
     ${tabs.map(x => `<button class="btn btn-sm ${x.k === cur.k ? 'btn-primary' : 'btn-outline'}" data-tab="${x.k}">${esc(x.l)}</button>`).join('')}
     <span class="flex-1"></span>
+    ${hasPerm('memo', 'publish') || S.profile.is_admin ? `<button class="btn btn-outline" id="btn-memo-import">${esc(t('btn_import_csv'))}</button>
+      <button class="btn btn-outline" id="btn-memo-bulk">${esc(t('btn_bulk_assign'))}</button>` : ''}
     ${hasPerm('memo', 'submit') ? `<button class="btn btn-primary" id="btn-newmemo">${esc(t('memo_new'))}</button>` : ''}</div>
     <div id="memo-table"></div>`;
   $('#page').innerHTML = html;
   document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => pageMemos(b.dataset.tab)));
   $('#btn-newmemo')?.addEventListener('click', () => openMemoEditor(null));
+  $('#btn-memo-import')?.addEventListener('click', () => openBulkImport('memos'));
+  $('#btn-memo-bulk')?.addEventListener('click', () => openBulkAssign('memos'));
 
   const catName = id => { const c = S.categories.find(x => x.id === id); return c ? (S.lang === 'vi' ? c.name_vi : c.name_en) : ''; };
   const tbl = makeTable({
@@ -1042,12 +1047,16 @@ async function pageSops(tab = 'all') {
   html += `<div class="flex flex-wrap items-center gap-2 mb-2">
     ${tabs.map(x => `<button class="btn btn-sm ${x.k === cur.k ? 'btn-primary' : 'btn-outline'}" data-soptab="${x.k}">${esc(x.l)}</button>`).join('')}
     <span class="flex-1"></span>
+    ${hasPerm('memo', 'publish') || S.profile.is_admin ? `<button class="btn btn-outline" id="btn-sop-import">${esc(t('btn_import_csv'))}</button>
+      <button class="btn btn-outline" id="btn-sop-bulk">${esc(t('btn_bulk_assign'))}</button>` : ''}
     ${canCreate ? `<button class="btn btn-primary" id="btn-newsop">${esc(t('sop_new'))}</button>` : ''}</div>
     <div class="text-xs text-slate-500 mb-3">${esc(t('sop_intro'))}</div>
     <div id="sop-table"></div>`;
   $('#page').innerHTML = html;
   document.querySelectorAll('[data-soptab]').forEach(b => b.addEventListener('click', () => pageSops(b.dataset.soptab)));
   $('#btn-newsop')?.addEventListener('click', () => openSopEditor(null));
+  $('#btn-sop-import')?.addEventListener('click', () => openBulkImport('sops'));
+  $('#btn-sop-bulk')?.addEventListener('click', () => openBulkAssign('sops'));
 
   const tbl = makeTable({
     columns: [
@@ -1262,6 +1271,15 @@ const enDate = d => {
   const M = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const [y, m, day] = d.split('-'); return `${M[Number(m) - 1]} ${Number(day)}, ${y}`;
 };
+/* Tách 1 dòng song ngữ "phần VI/ phần EN" tại dấu "/ " đầu tiên (quy ước template:
+   dấu "/" đi với phần VI màu đen, phần sau màu xanh). "42/2026" không có khoảng
+   trắng sau "/" nên không bị tách nhầm. */
+function biSplit(s) {
+  s = s || '';
+  const i = s.indexOf('/ ');
+  if (i < 0) return [{ t: s, en: false }];
+  return [{ t: s.slice(0, i + 2), en: false }, { t: s.slice(i + 2), en: true }];
+}
 /* Ghép song ngữ: nếu số đoạn VI = EN thì xen kẽ từng đoạn (như template), ngược lại VI hết rồi tới EN */
 function biParas(vi, en) {
   const a = (vi || '').split(/\n/).map(x => x.trim()).filter(Boolean);
@@ -1305,17 +1323,22 @@ function openPrintWindow(title, inner, { footer = '', marginCss = '2cm 2cm 2cm 2
     .en { color: #${TPL.blue}; }
     p { margin-bottom: 6pt; text-align: justify; }
     .memo-title { text-align: center; font-weight: bold; font-size: 20pt; margin: 8pt 0 2pt; }
-    .memo-no { text-align: center; margin-bottom: 12pt; }
-    .info td { padding: 2pt 4pt; vertical-align: top; }
-    .info .lbl { width: 100pt; font-weight: bold; white-space: nowrap; }
+    .memo-no { text-align: center; font-weight: bold; margin-bottom: 12pt; }
+    .info, .info td { border: 0.5pt solid #000; }
+    .info td { padding: 3pt 6pt; vertical-align: top; }
+    .info .lbl { width: 27%; white-space: nowrap; }
     .sign { margin-top: 28pt; }
     .sign .name { font-weight: bold; text-transform: uppercase; margin-top: 42pt; }
     .sop-head { border: 0.75pt solid #000; margin-bottom: 12pt; }
     .sop-head td { border: 0.75pt solid #000; padding: 4pt 6pt; vertical-align: top; }
-    .sop-head .tl { width: 40%; text-align: center; font-weight: bold; }
-    .sop-head .tl .en2 { font-weight: normal; font-style: italic; font-size: 10pt; }
+    .sop-head .tl { width: 40%; text-align: center; font-weight: bold; vertical-align: middle; }
+    .sop-head .tl .en2 { font-weight: normal; color: #${TPL.blue}; font-size: 10pt; }
+    .sop-head .code-cell { text-align: center; }
     .sop-title { font-weight: bold; text-align: center; }
+    .lbl-b { font-weight: bold; }
     .lbl-blue { font-weight: bold; color: #${TPL.blue}; }
+    .proc-head { text-align: center; font-weight: bold; margin: 14pt 0 6pt; }
+    .lean { font-style: italic; }
     ul { margin: 4pt 0 8pt 22pt; }
     li { margin-bottom: 4pt; text-align: justify; }
     .foot { position: fixed; bottom: 0; left: 0; right: 0; font-size: 8pt; color: #${TPL.gray};
@@ -1329,24 +1352,26 @@ function openPrintWindow(title, inner, { footer = '', marginCss = '2cm 2cm 2cm 2
   w.focus();
   setTimeout(() => w.print(), 350);
 }
+/* Dòng song ngữ "VI/ EN" → HTML: phần VI đen, phần EN xanh (đúng template) */
+const biSpanHTML = s => biSplit(s).map(p => p.en ? `<span class="en">${esc(p.t)}</span>` : esc(p.t)).join('');
 function printMemo(m) {
   const paras = biParas(m.body_vi, m.body_en)
     .map(p => `<p class="${p.lang === 'en' ? 'en' : ''}">${esc(p.t)}</p>`).join('');
   const inner = `
     <div class="memo-title">MEMO</div>
-    <div class="memo-no">Số/ No. ${esc(m.memo_code || '')}</div>
+    <div class="memo-no">Số/ <span class="en">No.</span> ${esc(m.memo_code || '')}</div>
     <table class="info">
-      <tr><td class="lbl">Kính gửi/ To:</td><td>${esc(m.to_line || '')}</td></tr>
-      <tr><td class="lbl">Từ/ From:</td><td>${esc(m.from_line || '')}</td></tr>
-      <tr><td class="lbl">Về việc/ Re:</td><td>${esc(m.title_vi || '')}${m.title_en ? `<span class="en">/ ${esc(m.title_en)}</span>` : ''}</td></tr>
-      <tr><td class="lbl">Ngày hiệu lực:<br><span style="font-weight:bold">Effective date:</span></td>
+      <tr><td class="lbl">Kính gửi/ <span class="en">To:</span></td><td>${biSpanHTML(m.to_line || '')}</td></tr>
+      <tr><td class="lbl">Từ/ <span class="en">From:</span></td><td>${biSpanHTML(m.from_line || '')}</td></tr>
+      <tr><td class="lbl">Về việc/ <span class="en">Re:</span></td><td>${esc(m.title_vi || '')}${m.title_en ? `<span class="en">/ ${esc(m.title_en)}</span>` : ''}</td></tr>
+      <tr><td class="lbl">Ngày hiệu lực:<br><span class="en">Effective date:</span></td>
           <td>${esc(viDate(m.effective_date))}<br><span class="en">${esc(enDate(m.effective_date))}</span></td></tr>
     </table>
     <div style="margin-top:12pt">${paras}</div>
     <div class="sign">
       <p>Trân trọng,<br><span class="en">Yours sincerely,</span></p>
       <div class="name">${esc(m.signer_name || '')}</div>
-      <div>${esc(m.signer_title || '')}</div>
+      <div><b>${biSpanHTML(m.signer_title || '')}</b></div>
     </div>`;
   openPrintWindow(`Memo ${m.memo_code || ''}`, inner,
     { footer: 'Plaza Hotel Company Limited  —  Confidential', marginCss: '2cm 2cm 2.2cm 2.5cm' });
@@ -1357,16 +1382,16 @@ function printSop(s) {
     <table class="sop-head">
       <tr><td class="tl" rowspan="2">QUY TRÌNH TIÊU CHUẨN<br><span class="en2">Standard Operating Procedure</span></td>
           <td>${esc(s.dept_name || '')}</td></tr>
-      <tr><td>Mã số/ No.: ${esc(s.code || '')}</td></tr>
+      <tr><td class="code-cell">Mã số/ <span class="en">No.</span>: ${esc(s.code || '')}</td></tr>
       <tr><td colspan="2" class="sop-title">${esc(s.title_vi || '')}${s.title_en ? `<br><span class="en" style="font-weight:normal">${esc(s.title_en)}</span>` : ''}</td></tr>
     </table>
-    <p><span class="lbl-blue">Mục đích/ Objective:</span> ${esc(s.objective || '')}</p>
-    <p><span class="lbl-blue">Người thực hiện:</span> ${esc(s.performers || '')}</p>
-    <p><span class="lbl-blue">Người thụ hưởng:</span> ${esc(s.beneficiaries || '')}</p>
-    <p class="lbl-blue" style="margin-top:10pt">QUY TRÌNH/ PROCEDURES</p>
+    <p><span class="lbl-b">Mục đích/ </span><span class="lbl-blue">Objective:</span> ${esc(s.objective || '')}</p>
+    <p><span class="lbl-b">Người thực hiện:</span> ${esc(s.performers || '')}</p>
+    <p><span class="lbl-b">Người thụ hưởng:</span> ${esc(s.beneficiaries || '')}</p>
+    <p class="proc-head">QUY TRÌNH/ <span class="en">PROCEDURES</span></p>
     ${steps.length ? `<ul>${steps.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`
       : biParas(s.body_vi, s.body_en).map(p => `<p class="${p.lang === 'en' ? 'en' : ''}">${esc(p.t)}</p>`).join('')}
-    ${s.lean_note ? `<p><span class="lbl-blue">Ghi chú ngắn gọn:</span> ${esc(s.lean_note)}</p>` : ''}`;
+    ${s.lean_note ? `<p class="lean"><span class="lbl-b" style="font-style:italic">Ghi chú ngắn gọn:</span> ${esc(s.lean_note)}</p>` : ''}`;
   openPrintWindow(`SOP ${s.code || ''}`, inner, { marginCss: '2.54cm' });
 }
 
@@ -1436,10 +1461,16 @@ async function downloadMemoDocx(m) {
   const J = D.AlignmentType.JUSTIFIED;
   const body = biParas(m.body_vi, m.body_en).map(p =>
     para(run(p.t, p.lang === 'en' ? { color: TPL.blue } : {}), { align: J }));
-  const infoRow = (lbl1, lbl2, kids) => new D.TableRow({ children: [
-    cell([para(run(lbl1, { bold: true }), { spacing: { after: 0 } }),
-      ...(lbl2 ? [para(run(lbl2, { bold: true }), { spacing: { after: 0 } })] : [])], { w: 1700, borders: noBorders }),
-    cell(kids, { w: CW - 1700, borders: noBorders })] });
+  /* biRuns: dòng "VI/ EN" → run VI đen + run EN xanh (đúng template);
+     nhãn bảng info: KHÔNG đậm, VI đen + EN xanh; bảng info CÓ viền đơn 0.5pt */
+  const biRuns = (s, o = {}) => biSplit(s).map(p => run(p.t, { ...o, color: p.en ? TPL.blue : o.color }));
+  const thin = { style: D.BorderStyle.SINGLE, size: 4, color: '000000' };
+  const infoBorders = { top: thin, bottom: thin, left: thin, right: thin };
+  const LBLW = 2600; /* theo template gốc: cột nhãn 2600/9360 */
+  const infoRow = (lblVi, lblEn, lblEn2, kids) => new D.TableRow({ children: [
+    cell([para([run(lblVi), run(lblEn, { color: TPL.blue })], { spacing: { after: 0 } }),
+      ...(lblEn2 ? [para(run(lblEn2, { color: TPL.blue }), { spacing: { after: 0 } })] : [])], { w: LBLW, borders: infoBorders }),
+    cell(kids, { w: CW - LBLW, borders: infoBorders })] });
   const doc = new D.Document({ sections: [{
     properties: { page: { size: { width: 11906, height: 16838 },
       margin: { top: 1134, right: 1134, bottom: 1134, left: 1418, header: 709, footer: 709 } } },
@@ -1451,13 +1482,14 @@ async function downloadMemoDocx(m) {
         new D.TextRun({ children: [D.PageNumber.CURRENT], font: 'Times New Roman', size: 16, color: TPL.gray })] })] }) },
     children: [
       para(run('MEMO', { bold: true, size: 40 }), { align: D.AlignmentType.CENTER, spacing: { after: 40 } }),
-      para(run(`Số/ No. ${m.memo_code || ''}`), { align: D.AlignmentType.CENTER, spacing: { after: 240 } }),
-      new D.Table({ width: { size: CW, type: D.WidthType.DXA }, columnWidths: [1700, CW - 1700], borders: noBorders, rows: [
-        infoRow('Kính gửi/ To:', '', [para(run(m.to_line || ''), { spacing: { after: 0 } })]),
-        infoRow('Từ/ From:', '', [para(run(m.from_line || ''), { spacing: { after: 0 } })]),
-        infoRow('Về việc/ Re:', '', [para([run(m.title_vi || ''),
+      para([run('Số/ ', { bold: true }), run('No.', { bold: true, color: TPL.blue }), run(` ${m.memo_code || ''}`, { bold: true })],
+        { align: D.AlignmentType.CENTER, spacing: { after: 240 } }),
+      new D.Table({ width: { size: CW, type: D.WidthType.DXA }, columnWidths: [LBLW, CW - LBLW], borders: infoBorders, rows: [
+        infoRow('Kính gửi/ ', 'To:', '', [para(biRuns(m.to_line || ''), { spacing: { after: 0 } })]),
+        infoRow('Từ/ ', 'From:', '', [para(biRuns(m.from_line || ''), { spacing: { after: 0 } })]),
+        infoRow('Về việc/ ', 'Re:', '', [para([run(m.title_vi || ''),
           ...(m.title_en ? [run(`/ ${m.title_en}`, { color: TPL.blue })] : [])], { spacing: { after: 0 } })]),
-        infoRow('Ngày hiệu lực:', 'Effective date:', [
+        infoRow('Ngày hiệu lực:', '', 'Effective date:', [
           para(run(viDate(m.effective_date)), { spacing: { after: 0 } }),
           para(run(enDate(m.effective_date), { color: TPL.blue }), { spacing: { after: 0 } })])
       ] }),
@@ -1466,7 +1498,7 @@ async function downloadMemoDocx(m) {
       para(run('Trân trọng,'), { spacing: { before: 240, after: 0 } }),
       para(run('Yours sincerely,', { color: TPL.blue }), { spacing: { after: 720 } }),
       para(run((m.signer_name || '').toUpperCase(), { bold: true }), { spacing: { after: 0 } }),
-      para(run(m.signer_title || ''), { spacing: { after: 0 } })
+      para(biRuns(m.signer_title || '', { bold: true }), { spacing: { after: 0 } })
     ] }] });
   const blob = await D.Packer.toBlob(doc);
   saveDocxBlob(blob, `Memo_${fileSafe(m.memo_code)}.docx`);
@@ -1482,7 +1514,11 @@ async function downloadSopDocx(s) {
   const stepParas = steps.length
     ? steps.map(x => para(run(x), { bullet: { level: 0 }, align: J }))
     : biParas(s.body_vi, s.body_en).map(p => para(run(p.t, p.lang === 'en' ? { color: TPL.blue } : {}), { align: J }));
-  const lblPara = (lbl, txt) => para([run(lbl, { bold: true, color: TPL.blue }), run(' ' + (txt || ''))], { align: J });
+  /* Nhãn theo template: phần VI đậm ĐEN + phần EN đậm XANH (không phải cả nhãn xanh) */
+  const lblPara = (lblVi, lblEn, txt) => para([
+    run(lblVi, { bold: true }),
+    ...(lblEn ? [run(lblEn, { bold: true, color: TPL.blue })] : []),
+    run(' ' + (txt || ''))], { align: J });
   const doc = new D.Document({ sections: [{
     properties: { page: { size: { width: 11906, height: 16838 },
       margin: { top: 1440, right: 1440, bottom: 1440, left: 1440, header: 708, footer: 708 } } },
@@ -1491,24 +1527,26 @@ async function downloadSopDocx(s) {
       new D.Table({ width: { size: CW, type: D.WidthType.DXA }, columnWidths: [3610, CW - 3610], borders: boxBorders, rows: [
         new D.TableRow({ children: [
           cell([para(run('QUY TRÌNH TIÊU CHUẨN', { bold: true }), { align: C, spacing: { after: 0 } }),
-                para(run('Standard Operating Procedure', { italics: true, size: 20, color: TPL.blue }), { align: C, spacing: { after: 0 } })],
+                para(run('Standard Operating Procedure', { size: 20, color: TPL.blue }), { align: C, spacing: { after: 0 } })],
                 { w: 3610, borders: boxBorders, vMerge: D.VerticalMergeType.RESTART }),
           cell([para(run(s.dept_name || ''), { spacing: { after: 0 } })], { w: CW - 3610, borders: boxBorders })] }),
         new D.TableRow({ children: [
           cell([para(run('', { size: 2 }), { spacing: { after: 0 } })], { w: 3610, borders: boxBorders, vMerge: D.VerticalMergeType.CONTINUE }),
-          cell([para(run(`Mã số/ No.: ${s.code || ''}`), { spacing: { after: 0 } })], { w: CW - 3610, borders: boxBorders })] }),
+          cell([para([run('Mã số/ '), run('No.', { color: TPL.blue }), run(`: ${s.code || ''}`)], { align: C, spacing: { after: 0 } })], { w: CW - 3610, borders: boxBorders })] }),
         new D.TableRow({ children: [
           cell([para(run(s.title_vi || '', { bold: true }), { align: C, spacing: { after: 0 } }),
             ...(s.title_en ? [para(run(s.title_en, { color: TPL.blue }), { align: C, spacing: { after: 0 } })] : [])],
             { w: CW, span: 2, borders: boxBorders })] })
       ] }),
       para(run('', { size: 2 }), { spacing: { after: 120 } }),
-      lblPara('Mục đích/ Objective:', s.objective),
-      lblPara('Người thực hiện:', s.performers),
-      lblPara('Người thụ hưởng:', s.beneficiaries),
-      para(run('QUY TRÌNH/ PROCEDURES', { bold: true, color: TPL.blue }), { spacing: { before: 120, after: 80 } }),
+      lblPara('Mục đích/ ', 'Objective:', s.objective),
+      lblPara('Người thực hiện:', '', s.performers),
+      lblPara('Người thụ hưởng:', '', s.beneficiaries),
+      para([run('QUY TRÌNH/ ', { bold: true }), run('PROCEDURES', { bold: true, color: TPL.blue })],
+        { align: C, spacing: { before: 280, after: 120 } }),
       ...stepParas,
-      ...(s.lean_note ? [lblPara('Ghi chú ngắn gọn:', s.lean_note)] : [])
+      ...(s.lean_note ? [para([run('Ghi chú ngắn gọn: ', { bold: true, italics: true }),
+        run(s.lean_note, { italics: true })], { align: J })] : [])
     ] }] });
   const blob = await D.Packer.toBlob(doc);
   saveDocxBlob(blob, `SOP_${fileSafe(s.code || s.title_vi)}.docx`);
@@ -1524,6 +1562,164 @@ async function saveRowTolerant(table, row, id, extraCols) {
     if (!error) toast(t('print_cols_missing'), false);
   }
   return { error };
+}
+
+/* ============================================================================
+ * NHẬP CSV HÀNG LOẠT + GÁN BỘ PHẬN HÀNG LOẠT (Memo & SOP)
+ * ==========================================================================*/
+/* visible_to trong CSV: mã đơn vị (investor;hotel;office...) HOẶC tên tiếng Việt,
+   ngăn cách ; hoặc | — so khớp không dấu */
+function unitIdsFromCsv(v) {
+  const byCode = Object.fromEntries(S.orgUnits.map(o => [o.code.toLowerCase(), o.id]));
+  const byName = Object.fromEntries(S.orgUnits.map(o => [deaccent(o.name_vi), o.id]));
+  return [...new Set((v || '').split(/[;|]/).map(x => x.trim()).filter(Boolean)
+    .map(x => byCode[x.toLowerCase()] ?? byName[deaccent(x)]).filter(Boolean))];
+}
+function catIdFromCsv(v) {
+  if (!v) return null;
+  const c = S.categories.find(c => String(c.id) === v || deaccent(c.name_vi) === deaccent(v) || (c.name_en || '').toLowerCase() === v.toLowerCase());
+  return c ? c.id : null;
+}
+const MEMO_CSV_COLS = ['memo_code', 'title_vi', 'title_en', 'category', 'body_vi', 'body_en', 'effective_date', 'visible_to', 'to_line', 'from_line', 'signer_name', 'signer_title', 'status'];
+const SOP_CSV_COLS = ['code', 'title_vi', 'title_en', 'category', 'dept_name', 'objective', 'performers', 'beneficiaries', 'steps', 'lean_note', 'body_vi', 'body_en', 'visible_to', 'status'];
+function csvRowToMemo(r) {
+  return {
+    memo_code: r.memo_code || null, title_vi: r.title_vi, title_en: r.title_en || null,
+    category_id: catIdFromCsv(r.category), body_vi: r.body_vi || null, body_en: r.body_en || null,
+    effective_date: r.effective_date || null, visible_to: unitIdsFromCsv(r.visible_to),
+    to_line: r.to_line || null, from_line: r.from_line || null,
+    signer_name: r.signer_name || null, signer_title: r.signer_title || null,
+    status: ['draft', 'published'].includes(r.status) ? r.status : 'published',
+    author_id: S.user.id
+  };
+}
+function csvRowToSop(r) {
+  return {
+    code: r.code || null, title_vi: r.title_vi, title_en: r.title_en || null,
+    category_id: catIdFromCsv(r.category), dept_name: r.dept_name || null,
+    objective: r.objective || null, performers: r.performers || null, beneficiaries: r.beneficiaries || null,
+    steps: (r.steps || '').split(/\s*\|\s*/).filter(Boolean).join('\n') || null,
+    lean_note: r.lean_note || null, body_vi: r.body_vi || null, body_en: r.body_en || null,
+    visible_to: unitIdsFromCsv(r.visible_to),
+    status: ['draft', 'published'].includes(r.status) ? r.status : 'published',
+    author_id: S.user.id
+  };
+}
+/* Insert 1 lô, bỏ qua mã đã tồn tại (memo_code/code); nếu DB thiếu cột mới thì
+   tự bỏ các cột đó và chèn tiếp (giống saveRowTolerant). */
+async function bulkInsertDocs(table, keyCol, rows, extraCols) {
+  rows = rows.filter(r => r.title_vi);
+  if (!rows.length) return { inserted: 0, skipped: 0 };
+  const keys = rows.map(r => r[keyCol]).filter(Boolean);
+  let existSet = new Set();
+  if (keys.length) {
+    const { data } = await sb.from(table).select(keyCol).in(keyCol, keys);
+    existSet = new Set((data || []).map(x => x[keyCol]));
+  }
+  let toInsert = rows.filter(r => !r[keyCol] || !existSet.has(r[keyCol]));
+  const skipped = rows.length - toInsert.length;
+  if (table === 'memos') { /* memo thiếu mã → tự đánh số tiếp theo năm hiện tại */
+    const year = new Date().getFullYear();
+    const { count } = await sb.from('memos').select('*', { count: 'exact', head: true }).like('memo_code', `MEMO-${year}-%`);
+    let n = (count || 0);
+    toInsert.forEach(r => { if (!r.memo_code) r.memo_code = `MEMO-${year}-${String(++n).padStart(3, '0')}`; });
+  }
+  if (!toInsert.length) return { inserted: 0, skipped };
+  let { error } = await sb.from(table).insert(toInsert);
+  if (error && /column|schema cache/i.test(error.message || '')) {
+    toInsert = toInsert.map(r => { const s = { ...r }; extraCols.forEach(c => delete s[c]); return s; });
+    ({ error } = await sb.from(table).insert(toInsert));
+    if (!error) toast(t('print_cols_missing'), false);
+  }
+  if (error) return { inserted: 0, skipped, error };
+  return { inserted: toInsert.length, skipped };
+}
+function openBulkImport(kind) {
+  const isMemo = kind === 'memos';
+  const cols = isMemo ? MEMO_CSV_COLS : SOP_CSV_COLS;
+  const root = openModal(`<div class="p-6">
+    <h2 class="text-lg font-bold text-navy mb-3">${esc(t(isMemo ? 'memo_import_title' : 'sop_import_title'))}</h2>
+    <p class="text-xs text-slate-500 mb-2">${esc(t('bulk_import_hint'))}</p>
+    <div class="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded p-2 mb-3 break-words"><b>${esc(t('bulk_cols'))}:</b> ${cols.join(', ')}</div>
+    <button class="btn btn-outline btn-sm mb-3" data-sample>⬇ ${esc(t('csv_sample'))}</button>
+    <input type="file" id="bulk-csv" accept=".csv">
+    <div class="flex justify-end gap-2 mt-4"><button class="btn btn-outline" data-cancel>${esc(t('btn_cancel'))}</button></div></div>`);
+  root.querySelector('[data-cancel]').addEventListener('click', closeModal);
+  root.querySelector('[data-sample]').addEventListener('click', () => {
+    const unitCodes = S.orgUnits.map(o => o.code).join(';');
+    const sample = isMemo
+      ? { memo_code: 'MEMO-2026-001', title_vi: 'Tiêu đề tiếng Việt', title_en: 'English title', category: '', body_vi: 'Đoạn 1\nĐoạn 2', body_en: 'Para 1\nPara 2', effective_date: '2026-01-15', visible_to: 'hotel;office', to_line: 'Mr. A – Chức danh/ Title', from_line: 'Ms. B – Chức danh/ Title', signer_name: 'NGUYỄN VĂN A', signer_title: 'Tổng Giám đốc/ General Manager', status: 'published' }
+      : { code: 'LA-SOP-001', title_vi: 'Xử lý đơn nghỉ phép', title_en: 'Process leave requests', category: '', dept_name: 'Phòng Pháp chế – Hành chính', objective: 'Bảo đảm ...', performers: 'Chức danh A (chính); Chức danh B (hỗ trợ)', beneficiaries: 'Toàn thể nhân viên', steps: 'Bước 1 – Tiếp nhận ... | Bước 2 – Kiểm tra ... | Bước 3 – Trình duyệt', lean_note: '', body_vi: '', body_en: '', visible_to: unitCodes, status: 'published' };
+    downloadCsv(isMemo ? 'memo_mau.csv' : 'sop_mau.csv', [sample]);
+  });
+  root.querySelector('#bulk-csv').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const raw = parseCsv(await f.text());
+    const rows = raw.map(isMemo ? csvRowToMemo : csvRowToSop);
+    const extra = isMemo ? ['to_line', 'from_line', 'signer_name', 'signer_title']
+      : ['dept_name', 'objective', 'performers', 'beneficiaries', 'steps', 'lean_note'];
+    const { inserted, skipped, error } = await bulkInsertDocs(isMemo ? 'memos' : 'sops', isMemo ? 'memo_code' : 'code', rows, extra);
+    if (error) { toast(error.message, false); return; }
+    await audit(kind, '', 'csv_import', `inserted=${inserted} skipped=${skipped}`);
+    toast(tf('import_result', { inserted, skipped })); closeModal();
+    isMemo ? pageMemos() : pageSops();
+  });
+}
+/* Gán bộ phận (visible_to) hàng loạt cho Memo/SOP: chọn nhiều mục + chọn đơn vị */
+async function openBulkAssign(kind) {
+  const isMemo = kind === 'memos';
+  const { data, error } = await sb.from(kind).select(isMemo ? 'id, memo_code, title_vi, visible_to' : 'id, code, title_vi, visible_to').order('updated_at', { ascending: false });
+  if (error) { toast(error.message, false); return; }
+  const rows = data || [];
+  const rowHtml = r => `<label class="flex items-start gap-2 text-xs py-1 border-b border-slate-100" data-row>
+      <input type="checkbox" class="!w-auto mt-0.5" data-bid="${r.id}">
+      <b class="whitespace-nowrap">${esc(isMemo ? r.memo_code : (r.code || '—'))}</b>
+      <span class="flex-1 min-w-0 break-words">${esc(r.title_vi)}</span>
+      <span class="whitespace-nowrap text-slate-400">${(r.visible_to || []).map(orgName).map(esc).join(', ') || esc(t('all_departments'))}</span></label>`;
+  const root = openModal(`<div class="p-6">
+    <h2 class="text-lg font-bold text-navy mb-3">${esc(t('bulk_assign_title'))} — ${esc(t(isMemo ? 'nav_memos' : 'nav_sops'))}</h2>
+    <input type="text" id="ba-search" placeholder="${esc(t('search_in_table'))}" class="mb-2">
+    <label class="flex items-center gap-2 text-xs font-semibold mb-1"><input type="checkbox" id="ba-all" class="!w-auto">${esc(t('bulk_select_filtered'))}</label>
+    <div id="ba-list" class="border border-slate-200 rounded-md p-2 max-h-64 overflow-y-auto mb-3">${rows.map(rowHtml).join('')}</div>
+    <div class="text-xs font-semibold mb-1">${esc(t('bulk_pick_units'))}</div>
+    ${checkboxList('ba_units', S.orgUnits.map(o => ({ v: String(o.id), l: orgName(o.id) })), [])}
+    <div class="flex flex-col gap-1 text-sm border border-slate-200 rounded-md p-2 bg-slate-50 mt-2">
+      <label class="flex items-center gap-2"><input type="radio" name="ba-mode" value="replace" checked class="!w-auto"><b>${esc(t('bulk_mode_replace'))}</b></label>
+      <label class="flex items-center gap-2"><input type="radio" name="ba-mode" value="add" class="!w-auto"><b>${esc(t('bulk_mode_add'))}</b></label>
+    </div>
+    <div class="flex justify-end gap-2 mt-4">
+      <button class="btn btn-outline" data-cancel>${esc(t('btn_cancel'))}</button>
+      <button class="btn btn-primary" data-apply>${esc(t('bulk_apply'))}</button></div></div>`, true);
+  root.querySelector('[data-cancel]').addEventListener('click', closeModal);
+  root.querySelector('#ba-search').addEventListener('input', e => {
+    const q = deaccent(e.target.value.trim());
+    root.querySelectorAll('[data-row]').forEach(el => { el.style.display = !q || deaccent(el.textContent).includes(q) ? '' : 'none'; });
+  });
+  root.querySelector('#ba-all').addEventListener('change', e => {
+    root.querySelectorAll('[data-row]').forEach(el => {
+      if (el.style.display !== 'none') el.querySelector('[data-bid]').checked = e.target.checked;
+    });
+  });
+  root.querySelector('[data-apply]').addEventListener('click', async () => {
+    const ids = [...root.querySelectorAll('[data-bid]:checked')].map(x => x.dataset.bid);
+    const unitIds = readChecks(root, 'ba_units').map(Number);
+    const mode = root.querySelector('input[name="ba-mode"]:checked').value;
+    if (!ids.length) { toast(t('bulk_none_selected'), false); return; }
+    const byId = Object.fromEntries(rows.map(r => [r.id, r]));
+    let ok = 0, firstErr = null;
+    for (const id of ids) {
+      const cur = byId[id]?.visible_to || [];
+      const next = mode === 'add' ? [...new Set([...cur, ...unitIds])] : unitIds;
+      const { error: e2 } = await sb.from(kind).update({ visible_to: next }).eq('id', id);
+      if (e2) { firstErr = firstErr || e2; continue; }
+      ok++;
+    }
+    await audit(kind, '', 'bulk_assign_units', `mode=${mode} updated=${ok}/${ids.length}`);
+    if (firstErr) toast(`${tf('bulk_done', { n: ok })} — ${firstErr.message}`, false);
+    else toast(tf('bulk_done', { n: ok }));
+    closeModal();
+    isMemo ? pageMemos() : pageSops();
+  });
 }
 
 /* ============================================================================
@@ -1583,6 +1779,63 @@ async function pageUsers() {
     if (error) { toast(error.message, false); return; }
     await loadRefData(); pageUsers();
   });
+}
+
+/* ============================================================================
+ * QUẢN TRỊ — Sơ đồ tổ chức hệ thống (chỉ Admin)
+ * Cây: Công ty → các đơn vị (org_units) → người dùng; kèm tóm tắt quyền của
+ * từng đơn vị lấy trực tiếp từ role_matrix (luôn khớp thực tế, không vẽ tay).
+ * ==========================================================================*/
+async function pageOrgChart() {
+  const { data: profs } = await sb.from('profiles').select('*').order('full_name');
+  const users = profs || Object.values(S.profilesById);
+  const permsOfUnit = ouId => {
+    const out = { legal: [], memo: [] };
+    for (const r of S.roleMatrix) {
+      if (r.allowed && r.org_unit_id === ouId && r.permissions?.code) out[r.module]?.push(t('perm_' + r.permissions.code) || r.permissions.code);
+    }
+    return out;
+  };
+  const userLine = p => `<div class="flex items-center gap-1.5 text-xs py-0.5 ${p.active === false ? 'opacity-40 line-through' : ''}">
+    <span class="w-1.5 h-1.5 rounded-full bg-gold inline-block"></span>
+    <span class="min-w-0 break-words">${esc(p.full_name || p.email)}</span>
+    ${p.is_admin ? '<span class="badge bg-gold/20 text-yellow-800">Admin</span>' : ''}</div>`;
+  const unitCard = ou => {
+    const members = users.filter(u => u.org_unit_id === ou.id);
+    const pm = permsOfUnit(ou.id);
+    return `<div class="org-node bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+      <div class="bg-navy text-white px-3 py-2">
+        <div class="font-bold text-sm">${esc(orgName(ou.id))}</div>
+        <div class="text-[10px] text-white/60 uppercase tracking-wider">${esc(ou.code)} · ${esc(ou.name_en || '')}</div></div>
+      <div class="p-3">
+        ${members.length ? members.map(userLine).join('') : `<div class="text-xs text-slate-400">${esc(t('org_no_users'))}</div>`}
+        <div class="mt-2 pt-2 border-t border-slate-100 space-y-1">
+          <div class="text-[10px] text-slate-500"><b>${esc(t('admin_module_legal'))}:</b> ${pm.legal.map(esc).join(', ') || '—'}</div>
+          <div class="text-[10px] text-slate-500"><b>${esc(t('admin_module_memo'))}:</b> ${pm.memo.map(esc).join(', ') || '—'}</div>
+        </div></div></div>`;
+  };
+  const admins = users.filter(u => u.is_admin);
+  const orphans = users.filter(u => !u.org_unit_id && !u.is_admin);
+  let html = pageTitle(t('nav_orgchart'));
+  html += `<p class="text-xs text-slate-500 mb-4">${esc(t('org_intro'))}</p>
+  <div class="flex flex-col items-center">
+    <div class="bg-navy text-white rounded-lg shadow px-6 py-3 text-center">
+      <div class="font-extrabold">${esc(t('app_title'))}</div>
+      <div class="text-[11px] text-white/70">${esc(t('app_sub'))}</div></div>
+    <div class="w-px h-5 bg-slate-300"></div>
+    <div class="bg-white rounded-lg shadow-sm border border-gold/60 px-4 py-2 mb-1">
+      <div class="text-xs font-bold text-navy mb-1">⭐ ${esc(t('org_admins'))}</div>
+      ${admins.map(userLine).join('') || `<div class="text-xs text-slate-400">—</div>`}</div>
+    <div class="w-px h-5 bg-slate-300"></div>
+    <div class="w-full border-t border-slate-300 relative"><div class="absolute left-1/2 -top-px w-px h-4 bg-slate-300"></div></div>
+    <div class="grid gap-4 mt-4 w-full" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+      ${S.orgUnits.filter(o => o.active !== false).map(unitCard).join('')}
+    </div>
+    ${orphans.length ? `<div class="mt-4 w-full bg-amber-50 border border-amber-200 rounded-lg p-3">
+      <div class="text-xs font-bold text-amber-800 mb-1">${esc(t('org_unassigned'))}</div>
+      ${orphans.map(userLine).join('')}</div>` : ''}
+  </div>`;
+  $('#page').innerHTML = html;
 }
 
 /* ============================================================================
