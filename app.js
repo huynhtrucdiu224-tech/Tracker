@@ -1386,11 +1386,15 @@ function docxHelpers(D) {
   const cell = (kids, o = {}) => new D.TableCell({
     children: kids, width: { size: o.w, type: D.WidthType.DXA },
     shading: o.fill ? { type: D.ShadingType.CLEAR, fill: o.fill } : undefined,
-    borders: o.borders, columnSpan: o.span, verticalAlign: D.VerticalAlign.TOP,
-    margins: { top: 40, bottom: 40, left: 80, right: 80 } });
+    borders: o.borders, columnSpan: o.span, rowSpan: o.rowSpan,
+    verticalMerge: o.vMerge, verticalAlign: D.VerticalAlign.TOP,
+    margins: o.margins || { top: 40, bottom: 40, left: 80, right: 80 } });
+  const thinBorders = { style: D.BorderStyle.SINGLE, size: 6, color: '000000' };
+  const boxBorders = { top: thinBorders, bottom: thinBorders, left: thinBorders, right: thinBorders };
   /* Letterhead: ô navy + tên công ty + địa chỉ phải; thanh gold + xám */
   const letterhead = contentW => {
     const nameW = contentW - 142 - 20 - 2130;
+    const barMargins = { top: 0, bottom: 0, left: 0, right: 0 };
     const t1 = new D.Table({ width: { size: contentW, type: D.WidthType.DXA }, columnWidths: [142, 20, nameW, 2130],
       borders: noBorders, rows: [new D.TableRow({ children: [
         cell([para(run('', { size: 2 }), { spacing: { after: 0 } })], { w: 142, fill: TPL.navy, borders: noBorders }),
@@ -1400,13 +1404,13 @@ function docxHelpers(D) {
         cell(TPL.addr.map(a => para(run(a, { color: TPL.gray, size: 15 }), { align: D.AlignmentType.RIGHT, spacing: { after: 0 } })), { w: 2130, borders: noBorders })
       ] })] });
     const t2 = new D.Table({ width: { size: contentW, type: D.WidthType.DXA }, columnWidths: [1200, contentW - 1200],
-      borders: noBorders, rows: [new D.TableRow({ height: { value: 60, rule: D.HeightRule.EXACT }, children: [
-        cell([para(run('', { size: 2 }), { spacing: { after: 0 } })], { w: 1200, fill: TPL.gold, borders: noBorders }),
-        cell([para(run('', { size: 2 }), { spacing: { after: 0 } })], { w: contentW - 1200, fill: TPL.graybar, borders: noBorders })
+      borders: noBorders, rows: [new D.TableRow({ height: { value: 60, rule: D.HeightRule.ATLEAST }, children: [
+        cell([para(run('', { size: 2 }), { spacing: { after: 0 } })], { w: 1200, fill: TPL.gold, borders: noBorders, margins: barMargins }),
+        cell([para(run('', { size: 2 }), { spacing: { after: 0 } })], { w: contentW - 1200, fill: TPL.graybar, borders: noBorders, margins: barMargins })
       ] })] });
     return new D.Header({ children: [t1, t2] });
   };
-  return { noBorders, run, para, cell, letterhead };
+  return { noBorders, boxBorders, run, para, cell, letterhead };
 }
 function saveDocxBlob(blob, filename) {
   const a = document.createElement('a');
@@ -1461,7 +1465,7 @@ async function downloadMemoDocx(m) {
 async function downloadSopDocx(s) {
   const D = await ensureDocxLib().catch(e => { toast(e.message, false); return null; });
   if (!D) return;
-  const { run, para, cell, letterhead } = docxHelpers(D);
+  const { run, para, cell, letterhead, boxBorders } = docxHelpers(D);
   const CW = 9026; /* content width: A4 11906 - 1440*2 */
   const J = D.AlignmentType.JUSTIFIED;
   const C = D.AlignmentType.CENTER;
@@ -1475,17 +1479,19 @@ async function downloadSopDocx(s) {
       margin: { top: 1440, right: 1440, bottom: 1440, left: 1440, header: 708, footer: 708 } } },
     headers: { default: letterhead(CW) },
     children: [
-      new D.Table({ width: { size: CW, type: D.WidthType.DXA }, columnWidths: [3610, CW - 3610], rows: [
+      new D.Table({ width: { size: CW, type: D.WidthType.DXA }, columnWidths: [3610, CW - 3610], borders: boxBorders, rows: [
         new D.TableRow({ children: [
           cell([para(run('QUY TRÌNH TIÊU CHUẨN', { bold: true }), { align: C, spacing: { after: 0 } }),
-                para(run('Standard Operating Procedure', { italics: true, size: 20, color: TPL.blue }), { align: C, spacing: { after: 0 } })], { w: 3610 }),
-          cell([para(run(s.dept_name || ''), { spacing: { after: 0 } })], { w: CW - 3610 })] }),
+                para(run('Standard Operating Procedure', { italics: true, size: 20, color: TPL.blue }), { align: C, spacing: { after: 0 } })],
+                { w: 3610, borders: boxBorders, vMerge: D.VerticalMergeType.RESTART }),
+          cell([para(run(s.dept_name || ''), { spacing: { after: 0 } })], { w: CW - 3610, borders: boxBorders })] }),
         new D.TableRow({ children: [
-          cell([para(run('', { size: 2 }), { spacing: { after: 0 } })], { w: 3610 }),
-          cell([para(run(`Mã số/ No.: ${s.code || ''}`), { spacing: { after: 0 } })], { w: CW - 3610 })] }),
+          cell([para(run('', { size: 2 }), { spacing: { after: 0 } })], { w: 3610, borders: boxBorders, vMerge: D.VerticalMergeType.CONTINUE }),
+          cell([para(run(`Mã số/ No.: ${s.code || ''}`), { spacing: { after: 0 } })], { w: CW - 3610, borders: boxBorders })] }),
         new D.TableRow({ children: [
           cell([para(run(s.title_vi || '', { bold: true }), { align: C, spacing: { after: 0 } }),
-            ...(s.title_en ? [para(run(s.title_en, { color: TPL.blue }), { align: C, spacing: { after: 0 } })] : [])], { w: CW, span: 2 })] })
+            ...(s.title_en ? [para(run(s.title_en, { color: TPL.blue }), { align: C, spacing: { after: 0 } })] : [])],
+            { w: CW, span: 2, borders: boxBorders })] })
       ] }),
       para(run('', { size: 2 }), { spacing: { after: 120 } }),
       lblPara('Mục đích/ Objective:', s.objective),
