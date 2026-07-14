@@ -3,7 +3,7 @@ window.I18N = {
   vi: {
     app_title: 'CỔNG PHÁP CHẾ NỘI BỘ',
     app_sub: 'Plaza Hotel Company Limited',
-    sidebar_footer: '17 Le Duan, Saigon, HCMC',
+    sidebar_footer: '17 Lê Duẩn, Sài Gòn, TP.HCM',
     sec_overview: 'TỔNG QUAN',
     sec_legal: 'VĂN BẢN PHÁP LUẬT',
     sec_memo: 'VĂN BẢN NỘI BỘ',
@@ -251,7 +251,7 @@ window.I18N = {
   en: {
     app_title: 'INTERNAL LEGAL PORTAL',
     app_sub: 'Plaza Hotel Company Limited',
-    sidebar_footer: 'Legal & Admin Department · Internal',
+    sidebar_footer: '17 Le Duan, Sai Gon Ward, HCMC',
     sec_overview: 'OVERVIEW',
     sec_legal: 'LEGAL DOCUMENTS',
     sec_memo: 'INTERNAL MEMOS',
