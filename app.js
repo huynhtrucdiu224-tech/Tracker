@@ -1904,10 +1904,13 @@ async function pageOrgChart() {
   /* Cây phân cấp cố định theo yêu cầu BGĐ:
      Chủ đầu tư (Owner, trên cùng) → (Pháp chế bám giữa đoạn nối) → Khách sạn + Văn phòng cho thuê;
      các bộ phận còn lại (Nhân sự, F&B, ...) nằm dưới Khách sạn; CÔNG ĐOÀN đứng ĐỘC LẬP bên cạnh. */
-  const byCode = Object.fromEntries(S.orgUnits.map(o => [o.code, o]));
+  const byCode = Object.fromEntries(S.orgUnits.map(o => [o.code.toLowerCase(), o]));
   const investor = byCode['investor'], hotel = byCode['hotel'], office = byCode['office'],
     legal = byCode['legal'], union = byCode['union'];
-  const active = S.orgUnits.filter(o => o.active !== false);
+  /* Đơn vị "quản trị hệ thống" KHÔNG hiện thành thẻ trong sơ đồ — admin chỉ là
+     chú thích ở trên, không phải một cấp tổ chức */
+  const HIDDEN_CODES = ['sys_admin', 'sysadmin', 'admin', 'system'];
+  const active = S.orgUnits.filter(o => o.active !== false && !HIDDEN_CODES.includes((o.code || '').toLowerCase()));
   const others = active.filter(o => ![investor?.id, hotel?.id, office?.id, legal?.id, union?.id].includes(o.id));
   const ownerTag = `<span class="badge bg-gold/30 text-yellow-100 border border-gold/60">Owner</span>`;
   const unionBlock = union ? `<div class="flex flex-col items-center border-2 border-dashed border-slate-300 rounded-xl p-3 mt-1">
