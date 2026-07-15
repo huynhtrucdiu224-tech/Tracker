@@ -25,7 +25,20 @@ h1,h2,h3{font-weight:600}
 #tabs button{display:block;width:100%;text-align:left;background:none;border:none;border-left:4px solid transparent;color:#c9d3e4;padding:9px 16px;font-size:13px;cursor:pointer;border-radius:0}
 #tabs button:hover{background:var(--side2);color:#fff}
 #tabs button.on{background:var(--side2);border-left-color:var(--gold2);color:#fff;font-weight:700}
-.sidefoot{margin-top:auto;padding:12px 16px;border-top:1px solid var(--sideline);font-size:10.5px;color:#9fb0ca}
+.sidefoot{padding:12px 16px;border-top:1px solid var(--sideline);font-size:10.5px;color:#9fb0ca}
+.sideuser{margin-top:auto;padding:12px 16px;border-top:1px solid var(--sideline);font-size:12.5px;color:#fff}
+.sideuser .role{color:#9fb0ca;font-size:10.5px;margin-top:1px}
+.sideuser button{margin-top:8px;background:var(--side2);color:#dbe2ee;border:1px solid var(--sideline);font-size:11px}
+/* portal-style login modal */
+#loginModal{position:fixed;inset:0;background:rgba(11,31,58,.55);display:none;align-items:center;justify-content:center;z-index:200}
+#loginModal.open{display:flex}
+.logincard{background:#fff;border-radius:10px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden}
+.logincard .head{background:var(--side);color:#fff;padding:18px 20px;font-size:15px;font-weight:800;letter-spacing:.5px}
+.logincard .head small{display:block;color:#9fb0ca;font-weight:400;font-size:10.5px;margin-top:3px;letter-spacing:0}
+.logincard .body{padding:18px 20px}
+.logincard input{width:100%;border:1px solid #cfd6e2;border-radius:6px;padding:9px 10px;margin-bottom:10px;font-size:13px}
+.logincard .primary{width:100%;background:var(--navy);color:#fff;border:none;padding:10px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px}
+.logincard .err{color:var(--red);font-size:11.5px;min-height:16px;margin-bottom:6px}
 /* ---------- content ---------- */
 #content{flex:1;min-width:0;display:flex;flex-direction:column}
 #hdr{background:#fff;border-bottom:1px solid var(--line);padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:0;z-index:50}
@@ -97,7 +110,7 @@ tr.bad td{background:#fdeeec}
 @page{size:A4 landscape;margin:8mm}
 @media print{
   body{background:#fff;color:#111;font-size:10px}
-  #side,#hdr,#drop,#toasts,.noprint{display:none!important}
+  #side,#hdr,#drop,#toasts,#tab-settings,#loginModal,.noprint{display:none!important}
   .printhead{display:block;font-size:14px;font-weight:700;color:#0B1F3A;margin:0 0 8px;border-bottom:2px solid #C9A227;padding-bottom:4px}
   section.tab{display:block!important;page-break-after:always}
   .panel,.kpi{box-shadow:none;break-inside:avoid}
@@ -113,7 +126,10 @@ tr.bad td{background:#fdeeec}
   <div class="logo">SOFITEL SAIGON PLAZA<small data-i18n="subtitle">Owner / BOD Revenue &amp; Profit Analytics — 284 keys</small></div>
   <div id="tabs">
     <div class="navgroup" data-i18n="grpOverview">Overview</div>
-    <button data-tab="cockpit" class="on" data-i18n="tabCockpit">BOD Cockpit</button>
+    <button data-tab="conso" class="on" data-i18n="tabConso">Consolidated</button>
+    <button data-tab="cockpit" data-i18n="tabCockpit">Hotel</button>
+    <button data-tab="office" data-i18n="tabOffice">Office Building</button>
+    <button data-tab="exec" data-i18n="tabExec">Exec Summary ✉</button>
     <button data-tab="forecast" data-i18n="tabForecast">Forecast</button>
     <div class="navgroup" data-i18n="grpOps">Operations</div>
     <button data-tab="rooms" data-i18n="tabRooms">Rooms</button>
@@ -122,33 +138,46 @@ tr.bad td{background:#fdeeec}
     <button data-tab="other" data-i18n="tabOther">Other Ops</button>
     <button data-tab="undist" data-i18n="tabUndist">Undistributed</button>
     <button data-tab="reva" data-i18n="tabRevA">Revenue Analysis</button>
+    <button data-tab="eng" data-i18n="tabEng">Engineering</button>
     <div class="navgroup" data-i18n="grpMarket">Market</div>
     <button data-tab="market" data-i18n="tabMarket">Market — STR</button>
     <button data-tab="heat" data-i18n="tabHeat">Patterns &amp; Heatmaps</button>
     <button data-tab="bench" data-i18n="tabBench">Benchmark — HotStats</button>
-    <div class="navgroup" data-i18n="grpGroup">Group</div>
-    <button data-tab="conso" data-i18n="tabConso">Consolidated</button>
-    <button data-tab="eng" data-i18n="tabEng">Engineering</button>
+    <div class="navgroup" data-i18n="grpSystem">System</div>
     <button data-tab="dq">Data Quality <span id="warnbadge">0</span></button>
+    <button data-tab="settings" data-i18n="tabSettings">Settings &amp; Data</button>
   </div>
+  <div class="sideuser" id="sideUser" style="display:none"></div>
   <div class="sidefoot" data-i18n="sideFoot">Data stays in this browser. Export JSON regularly as backup.</div>
 </aside>
 
 <!-- ================= CONTENT ================= -->
 <div id="content">
 <div id="hdr">
-  <div class="pagetitle" id="pageTitle">BOD Cockpit</div>
+  <div class="pagetitle" id="pageTitle">Consolidated</div>
   <div class="ctl">
     <select id="selMonth" title="Month"></select>
     <div class="seg"><button id="btnMTD" class="on">MTD</button><button id="btnYTD">YTD</button></div>
     <div class="seg"><button id="btnVND" class="on">VND</button><button id="btnUSD">USD</button></div>
     <div class="seg"><button id="btnEN" class="on">EN</button><button id="btnVI">VI</button></div>
-    <button id="btnExport" title="Backup all stored months to a JSON file" data-i18n="export">💾 Backup JSON</button>
-    <button id="btnImport" title="Restore history from a JSON backup" data-i18n="import">📂 Restore JSON</button>
+    <button id="btnCloud" class="noprint" title="Cloud sync status">☁ Off</button>
     <button id="btnXlsx" title="Export every tab of the current view to a multi-sheet Excel file" data-i18n="xlsx">⬇ Export Excel</button>
     <button id="btnPrint" title="Print all tabs as an A4-landscape board pack (choose 'Save as PDF' in the dialog)" data-i18n="printPdf">🖨 Print / PDF</button>
-    <button id="btnClear" data-i18n="clearMonth">Clear month</button>
     <input type="file" id="fileImport" accept=".json" style="display:none">
+  </div>
+</div>
+
+<!-- ================= SIGN-IN MODAL (portal style) ================= -->
+<div id="loginModal" class="noprint">
+  <div class="logincard">
+    <div class="head">SSP BUSINESS ANALYSIS<small>Plaza Hotel Company Limited</small></div>
+    <div class="body">
+      <div class="err" id="loginErr"></div>
+      <input id="loginEmail" type="email" placeholder="Email" autocomplete="username">
+      <input id="loginPw" type="password" placeholder="Password" autocomplete="current-password">
+      <button class="primary" id="loginGo">Sign in</button>
+      <button style="width:100%;margin-top:8px" id="loginCancel">Continue offline</button>
+    </div>
   </div>
 </div>
 
@@ -161,7 +190,8 @@ tr.bad td{background:#fdeeec}
 </div>
 
 <main>
-  <section class="tab on" id="tab-cockpit"></section>
+  <section class="tab" id="tab-cockpit"></section>
+  <section class="tab" id="tab-office"></section>
   <section class="tab" id="tab-rooms"></section>
   <section class="tab" id="tab-seg"></section>
   <section class="tab" id="tab-fnb"></section>
@@ -169,12 +199,14 @@ tr.bad td{background:#fdeeec}
   <section class="tab" id="tab-undist"></section>
   <section class="tab" id="tab-market"></section>
   <section class="tab" id="tab-bench"></section>
-  <section class="tab" id="tab-conso"></section>
+  <section class="tab on" id="tab-conso"></section>
+  <section class="tab" id="tab-exec"></section>
   <section class="tab" id="tab-forecast"></section>
   <section class="tab" id="tab-heat"></section>
   <section class="tab" id="tab-reva"></section>
   <section class="tab" id="tab-eng"></section>
   <section class="tab" id="tab-dq"></section>
+  <section class="tab" id="tab-settings"></section>
 </main>
 </div><!-- /content -->
 </div><!-- /app -->
@@ -193,6 +225,19 @@ tr.bad td{background:#fdeeec}
  *  edit ONE regex in MAP below. Any label not found is pushed to
  *  parseWarnings and rendered in the Data Quality tab.
  * ===================================================================== */
+
+/* ---------------------------------------------------------------
+ * CLOUD — optional Supabase sync so up to a few reviewers see the
+ * same data in real time. Leave url/anonKey EMPTY to keep the app
+ * 100% local. Setup steps + SQL: see SUPABASE-SETUP.md next to
+ * this file. The anon key is safe to embed (RLS protects data).
+ * --------------------------------------------------------------- */
+const CLOUD = {
+  url:     'https://dplefzmvkqukmtnebnhd.supabase.co',
+  anonKey: 'sb_publishable_plfjg9czLiFOOxSzRGEj6g_z3L1B3Iv',
+  table:   'dashboard_store',
+  rowId:   'ssp',       // one shared row for this hotel
+};
 
 /* ---------------------------------------------------------------
  * MAP — every label regex used by the parsers. EDIT HERE ONLY.
@@ -1249,6 +1294,7 @@ async function ingestFiles(files){
     }catch(e){ toast(f.name+': '+e.message,true); }
   }
   saveStore(); refreshMonths(); renderAll();
+  if(sbUser) cloudPublish();          // reviewers see new data immediately
 }
 async function ingestPdf(name,buf){
   const eng=await parseEngPdf(buf);
@@ -1516,13 +1562,14 @@ en:{ subtitle:'Owner / BOD Revenue & Profit Analytics — 284 keys',
   export:'💾 Backup JSON', import:'📂 Restore JSON', clearMonth:'Clear month',
   xlsx:'⬇ Export Excel', printPdf:'🖨 Print / PDF',
   dropTitle:'Drag & drop workbooks here', orClick:'…or click to choose files',
-  dropNote:'(parsed 100% in your browser — data never leaves this machine)',
-  tabCockpit:'BOD Cockpit', tabRooms:'Rooms', tabFnb:'F&B', tabOther:'Other Ops',
+  dropNote:'(parsed in your browser — data stays local unless you sign in and Publish to your private Supabase)',
+  tabCockpit:'Dashboard', tabRooms:'Rooms', tabFnb:'F&B', tabOther:'Other Ops',
+  grpSystem:'System', tabSettings:'Settings & Data',
   tabUndist:'Undistributed', tabMarket:'Market — STR', tabBench:'Benchmark — HotStats', tabConso:'Consolidated',
   grpOverview:'Overview', grpOps:'Operations', grpMarket:'Market', grpGroup:'Group',
   sideFoot:'Data stays in this browser. Export JSON regularly as backup.',
   tabSeg:'Segmentation', filter:'Filter…',
-  tabForecast:'Forecast', tabHeat:'Patterns & Heatmaps', tabRevA:'Revenue Analysis', tabEng:'Engineering',
+  tabForecast:'Forecast', tabHeat:'Patterns & Heatmaps', tabRevA:'Revenue Analysis', tabEng:'Engineering', tabExec:'Exec Summary ✉',
   naTip:'Cannot be derived from the uploaded files', noData:'No data loaded for this month — drop the workbooks above.',
   kTotalRev:'Total Revenue', kGOP:'GOP', kGOPpct:'GOP %', kEBITDA:'EBITDA', kNP:'Net Profit (PBT)',
   kTRevPAR:'TRevPAR', kRevPAR:'RevPAR', kADR:'ADR', kOcc:'Occupancy', kPayroll:'Payroll % Rev', kRGI:'RGI', kGOPPAR:'GOP PAR',
@@ -1550,13 +1597,14 @@ vi:{ subtitle:'Phân tích Doanh thu & Lợi nhuận cho Chủ đầu tư / HĐQ
   export:'💾 Sao lưu JSON', import:'📂 Phục hồi JSON', clearMonth:'Xoá tháng',
   xlsx:'⬇ Xuất Excel', printPdf:'🖨 In / PDF',
   dropTitle:'Kéo & thả file Excel vào đây', orClick:'…hoặc bấm để chọn file',
-  dropNote:'(xử lý 100% trên trình duyệt — dữ liệu không rời khỏi máy)',
-  tabCockpit:'Bảng điều hành', tabRooms:'Phòng', tabFnb:'Ẩm thực', tabOther:'BP khác',
+  dropNote:'(xử lý trên trình duyệt — dữ liệu chỉ đồng bộ lên Supabase riêng khi bạn đăng nhập và Publish)',
+  tabCockpit:'Trang tổng quan', tabRooms:'Phòng', tabFnb:'Ẩm thực', tabOther:'BP khác',
+  grpSystem:'Hệ thống', tabSettings:'Cài đặt & Dữ liệu',
   tabUndist:'Chi phí chung', tabMarket:'Thị trường — STR', tabBench:'So chuẩn — HotStats', tabConso:'Hợp nhất',
   grpOverview:'Tổng hợp', grpOps:'Vận hành', grpMarket:'Thị trường', grpGroup:'Tập đoàn',
   sideFoot:'Dữ liệu lưu trên trình duyệt. Nhớ Xuất JSON để sao lưu định kỳ.',
   tabSeg:'Phân khúc', filter:'Lọc…',
-  tabForecast:'Dự báo', tabHeat:'Mẫu hình & Heatmap', tabRevA:'Phân tích doanh thu', tabEng:'Kỹ thuật',
+  tabForecast:'Dự báo', tabHeat:'Mẫu hình & Heatmap', tabRevA:'Phân tích doanh thu', tabEng:'Kỹ thuật', tabExec:'Thư gửi HĐQT ✉',
   naTip:'Không thể tính từ các file đã tải lên', noData:'Chưa có dữ liệu tháng này — kéo thả file ở trên.',
   kTotalRev:'Tổng doanh thu', kGOP:'GOP', kGOPpct:'GOP %', kEBITDA:'EBITDA', kNP:'LN trước thuế',
   kTRevPAR:'TRevPAR', kRevPAR:'RevPAR', kADR:'Giá BQ (ADR)', kOcc:'Công suất', kPayroll:'Lương % DT', kRGI:'RGI', kGOPPAR:'GOP PAR',
@@ -1663,6 +1711,111 @@ function renderCockpit(d){
       {type:'bar',label:'Revenue',data:rev.map(cv),backgroundColor:'rgba(74,125,189,.7)'},
       {type:'line',label:'GOP',data:gop.map(cv),borderColor:'#C9A227',backgroundColor:'#C9A227',tension:.3,yAxisID:'y'}]},
     options:{scales:{y:{ticks:{callback:v=>money(v,0)}}},maintainAspectRatio:false}});
+}
+
+/* ---------------- EXECUTIVE SUMMARY (BOD email draft) ---------------- */
+function execNotes(){ state.store.execNotes=state.store.execNotes||{};
+  return state.store.execNotes[state.month]=state.store.execNotes[state.month]||{ssp:'',cp:'',phcl:''}; }
+window.__execNote=(sec,val)=>{ execNotes()[sec]=val; saveStore(); renderExec(derive()); schedulePublish(); };
+window.__execCopy=()=>{ const txt=$('#execDraft').innerText;
+  const done=()=>toast('📋 Email draft copied — paste into Outlook');
+  if(navigator.clipboard?.writeText) navigator.clipboard.writeText(txt).then(done,()=>fallback());
+  else fallback();
+  function fallback(){ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done(); } };
+
+function buildExecDraft(d){
+  const L=[]; const m=curMonth(); const P='MTD';
+  const mn=fmtMonthKey(state.month).replace(/(\w+) (\d+)/,'$1 $2');
+  const usd=v=>v==null?'n/a':'US$'+Math.round(v/fx()).toLocaleString('en');
+  const usdM=v=>v==null?'n/a':'US$'+(v/fx()/1000).toLocaleString('en',{maximumFractionDigits:0})+'K';
+  const p1=(v,d2=1)=>v==null?'n/a':(v*100).toFixed(d2)+'%';
+  L.push('Dear Directors,','','Warmest greetings from PHCL team.','',
+    `Please find attached the monthly reports for Sofitel Saigon Plaza (SSP), Central Plaza (CP) and the consolidated financial statements for ${mn}. Key points below for your reference:`,'');
+  /* ---- 1/ SSP ---- */
+  L.push('1/ Sofitel Saigon Plaza:','');
+  if(d.ok){
+    const G=(path,f='act')=>g(d.p,path,P,f);
+    L.push('* Room performance:');
+    let occLine=`   * Occupancy was ${p1(d.occ.act)} with ADR at ${usd(d.adr.act)}, versus budget of ${p1(d.occ.bud)} and ${usd(d.adr.bud)}`;
+    if(d.compOcc!=null) occLine+=` (comp set occupancy ${d.compOcc.toFixed(1)}%)`;
+    L.push(occLine+'.');
+    if(d.ari!=null) L.push(`   * We continue to run occupancy ${d.mpi>100?'above':'below'} the comp set (MPI ${idx(d.mpi)}) while ADR remains at ${idx(d.ari)}% of the comp set (ARI); RGI is ${idx(d.rgi)}${d.rgi<100?' — share of revenue is still below fair share':''}.`);
+    /* segmentation mix */
+    const seg=d.p.seg;
+    if(seg){ const A='mtdAct'; const tot=seg.rows.filter(r=>r.type==='grouptotal');
+      const totRN=tot.reduce((a,r)=>a+(r.vals[A]?.rn??0),0)||1;
+      const parts=tot.filter(r=>(r.vals[A]?.rn??0)>0).sort((a,b)=>(b.vals[A]?.rn??0)-(a.vals[A]?.rn??0)).slice(0,3)
+        .map(r=>`${Math.round((r.vals[A].rn/totRN)*100)}% ${r.group.toLowerCase()} at ${usd(r.vals[A].arr)} ARR`);
+      L.push(`   * Segment mix of rooms sold: ${parts.join('; ')}.`);
+    }
+    if(d.flowLY!=null) L.push(`   * Flow-through vs last year is ${p1(d.flowLY)}${d.flowLY<TH.flowMin?' — cost creep to be addressed with the management team':''}.`);
+    /* F&B */
+    L.push('* F&B:');
+    const fbA=G('rev.totalFb'), fbB=G('rev.totalFb','bud');
+    L.push(`   * F&B revenue achieved ${fbB?Math.round(fbA/fbB*100):'n/a'}% of budget (${usdM(fbA)} vs ${usdM(fbB)}).`);
+    const per='MTD'; const V=(o,k,f='act')=>o[k]?.[per]?.[f]??null;
+    const outs=d.p.fnbOutlets.filter(o=>V(o,'totalRev')>0&&V(o,'totalRev','bud')>0)
+      .map(o=>({n:o.name,r:V(o,'totalRev')/V(o,'totalRev','bud'),dp:div(V(o,'deptProfit'),V(o,'totalRev'))}));
+    if(outs.length){ const best=outs.reduce((a,b)=>b.r>a.r?b:a), worst=outs.reduce((a,b)=>b.r<a.r?b:a);
+      L.push(`   * ${best.n} outperformed at ${Math.round(best.r*100)}% of budget; ${worst.n} is lagging at ${Math.round(worst.r*100)}% of budget and needs a commercial response.`);
+    }
+    const fbProfit=div(g(d.p,'dp.fnb',P,'act'),fbA);
+    if(fbProfit!=null) L.push(`   * F&B departmental profit ratio is ${p1(fbProfit)} before overheads${d._foodCost!=null?` (food cost ${p1(d._foodCost)})`:''}.`);
+    /* GOP & payroll */
+    L.push('* Profitability & staffing:');
+    const budUnreal=d.occ.act!=null&&d.occ.bud!=null&&Math.abs(d.occ.act-d.occ.bud)*100>TH.budgetOccGapPts;
+    L.push(`   * GOP (before base & incentive fees) is ${p1(d.gopPct.act)} versus budget of ${p1(d.gopPct.bud)} (${usdM(d.gop.act)}).${budUnreal?` Please note the budget assumed only ${p1(d.occ.bud)} occupancy, so budget variances are not a meaningful control this month — last year and the comp set are the better benchmarks.`:''}`);
+    const staff=G('stats.staff');
+    L.push(`   * Payroll incl. service charge is ${p1(d.payrollPct.act)} of revenue; headcount at month-end is ${staff!=null?n1(staff,0):'n/a'} employees.`);
+    /* top alerts as watch items */
+    const al=runRules(d).filter(a=>a.sev!=='info').slice(0,3);
+    if(al.length){ L.push('* Watch items flagged by our analytics:');
+      for(const a of al){ const tmp=document.createElement('div'); tmp.innerHTML=a.detail;
+        L.push(`   * ${a.title}: ${tmp.textContent}`); } }
+  } else L.push('* (Load the month\'s P&L to auto-fill room, F&B and GOP commentary.)');
+  const notes=execNotes();
+  if(notes.ssp) L.push('* '+notes.ssp.split('\n').join('\n* '));
+  L.push('');
+  /* ---- 2/ CP ---- */
+  L.push('2/ Central Plaza:','');
+  if(d.fs){ const c=d.fs.centralGop;
+    L.push(`* Central Plaza contributed ${usdM(c?.act)} GOP this month (budget ${usdM(c?.bud)}, last year ${usdM(c?.ly)}), i.e. ${p1(div(c?.act,(c?.act??0)+(d.fs.hotelGop?.act??0)))} of group GOP.`);
+  } else L.push('* (Load the consolidated FS to auto-fill Central Plaza figures.)');
+  if(notes.cp) L.push('* '+notes.cp.split('\n').join('\n* '));
+  L.push('');
+  /* ---- 3/ PHCL ---- */
+  L.push('3/ PHCL (consolidated):','');
+  if(d.fs){ L.push(`* Consolidated net profit after tax is ${usdM(d.fs.npat?.act)} versus budget of ${usdM(d.fs.npat?.bud)} (${p1(varPct(d.fs.npat?.act,d.fs.npat?.bud))} variance).`); }
+  const cf=state.store.cf;
+  if(cf){ const lastAct=cf.flags.lastIndexOf('Actual');
+    const minI=cf.closing.reduce((a,v,i)=>v!=null&&(a==null||v<cf.closing[a])?i:a,null);
+    L.push(`* Cash: closing balance ${usdM(cf.closing[lastAct])} at ${fmtMonthKey(cf.months[lastAct])}; the cashflow forecast bottoms at ${usdM(cf.closing[minI])} in ${fmtMonthKey(cf.months[minI])}.`);
+  }
+  const rf=state.store.rf;
+  if(rf){ const negs=rf.months.filter((mm,i)=>/forecast/i.test(rf.flags[i])&&rf.rows.gop[i]<0);
+    if(negs.length) L.push(`* The rolling forecast plans negative GOP in ${negs.map(fmtMonthKey).join(', ')} (renovation period) — cash and cost discipline for these months are being monitored via the cashflow forecast above.`);
+  }
+  if(notes.phcl) L.push('* '+notes.phcl.split('\n').join('\n* '));
+  L.push('','Please let us know if you require further assistance. We look forward to your feedback.','','Best regards,','PHCL team');
+  return L.join('\n');
+}
+function renderExec(d){
+  const el=$('#tab-exec');
+  const notes=execNotes();
+  const ta=(sec,label,ph)=>`<div style="margin-bottom:8px"><div class="small" style="font-weight:700;margin-bottom:2px">${label}</div>
+    <textarea onchange="__execNote('${sec}',this.value)" placeholder="${ph}" style="width:100%;min-height:64px;border:1px solid #cfd6e2;border-radius:6px;padding:6px 8px;font:inherit;font-size:12px">${notes[sec]||''}</textarea></div>`;
+  el.innerHTML=`
+    <div class="cols c2">
+      <div class="panel"><h3>Draft BOD email — ${fmtMonthKey(state.month)} <button class="noprint" onclick="__execCopy()" style="margin-left:8px">📋 Copy email</button></h3>
+        <div id="execDraft" contenteditable="true" spellcheck="false"
+          style="white-space:pre-wrap;font-size:12.5px;line-height:1.55;border:1px solid var(--line);border-radius:6px;padding:12px;background:#fdfdfc;max-height:640px;overflow-y:auto">${buildExecDraft(d).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>
+        <div class="small" style="margin-top:6px">Auto-written from the loaded reports in the house style (numbers switch with the VND/USD toggle; ADR quoted in US$ at the FS rate ${n1(fx(),0)}). Edit inline, then Copy. Regenerates when data or notes change — inline edits are not saved, notes are.</div></div>
+      <div class="panel"><h3>Manual notes — the parts only you know <span class="small">(saved per month, inserted into the draft)</span></h3>
+        ${ta('ssp','1/ SSP — qualitative items','e.g. Increase in complaints on room maintenance / AC / bed quality; booking window shortening to 7–10 days; Le17 dinner lagging while La Maison renovation proposal pending…')}
+        ${ta('cp','2/ Central Plaza — leasing & tenants','e.g. UOB new tower by 2031 — two-phase leasing approach drafted; Avison Young to lead discussions…')}
+        ${ta('phcl','3/ PHCL — corporate matters','e.g. HMA 6th-term extension counter-proposals sent to Operator; Board meeting agenda to be circulated by …')}
+        <div class="small">Tip: one line per bullet — each line becomes its own bullet in the draft. Notes sync to reviewers when you Publish.</div></div>
+    </div>`;
 }
 
 /* ---------------- ROOMS ---------------- */
@@ -2676,6 +2829,38 @@ function renderDQ(d){
   badge.textContent=fails; badge.style.display=fails?'inline-block':'none';
 }
 
+/* ---------------- SETTINGS & DATA ---------------- */
+function renderSettings(){
+  const el=$('#tab-settings'); if(!el) return;
+  const configured=!!(CLOUD.url&&CLOUD.anonKey);
+  const lsBytes=(localStorage.getItem(LS_KEY)||'').length;
+  el.innerHTML=`
+    <div class="cols c2">
+      <div class="panel"><h3>Account & cloud sync</h3>
+        <table><tbody>
+          <tr><td>Cloud project</td><td>${configured?CLOUD.url.replace('https://',''):'<span class="tag r">not configured</span>'}</td></tr>
+          <tr><td>Status</td><td>${sbUser?'<span class="tag g">signed in</span> '+sbUser.email:configured?'<span class="tag a">offline — not signed in</span>':'<span class="tag r">local only</span>'}</td></tr>
+          <tr><td>Sync mode</td><td>${sbUser?'Automatic — every change publishes itself; reviewers update live':'—'}</td></tr>
+        </tbody></table>
+        <div style="margin-top:10px">
+          ${sbUser?'<button onclick="__signOut()">Sign out</button> <button onclick="cloudPublish()">⤴ Publish now</button> <button onclick="cloudPull(true)">⤵ Pull latest</button>':configured?'<button onclick="__loginOpen()" class="on">Sign in</button>':''}
+        </div>
+        <div class="small" style="margin-top:8px">Accounts are managed in Supabase → Authentication → Users. Only accounts you create there can sign in (public sign-up is disabled). Setup guide: SUPABASE-SETUP.md.</div></div>
+      <div class="panel"><h3>Data — backup & restore</h3>
+        <table><tbody>
+          <tr><td>Months stored</td><td>${Object.keys(state.store.months).length} (rolling 24)</td></tr>
+          <tr><td>Local storage used</td><td>${(lsBytes/1024).toFixed(0)} KB of ~5,000 KB</td></tr>
+          <tr><td>Selected month</td><td>${fmtMonthKey(state.month)}</td></tr>
+        </tbody></table>
+        <div style="margin-top:10px">
+          <button onclick="__backup()">💾 Backup JSON</button>
+          <button onclick="__restore()">📂 Restore JSON</button>
+          <button onclick="__clearMonth()" style="color:var(--red)">🗑 Clear selected month</button>
+        </div>
+        <div class="small" style="margin-top:8px">Backup downloads the full history as one JSON file — keep a copy outside OneDrive monthly. Restore replaces everything with a backup file (and re-publishes if signed in). The cloud row is a share channel, not a backup.</div></div>
+    </div>`;
+}
+
 /* ---------------- top-level render ---------------- */
 function refreshMonths(){
   const sel=$('#selMonth'); const keys=Object.keys(state.store.months).sort().reverse();
@@ -2687,7 +2872,7 @@ function renderAll(){
   const d=derive();
   renderCockpit(d); renderRooms(d); renderSeg(d); renderFnb(d); renderOther(d);
   renderUndist(d); renderMarket(d); renderBench(d); renderConso(d); renderDQ(d);
-  renderForecast(d); renderHeat(d); renderRevA(d); renderEng(d);
+  renderForecast(d); renderHeat(d); renderRevA(d); renderEng(d); renderExec(d); renderSettings();
 }
 
 /* ---------- generic table sort + filter (event delegation survives re-renders) ---------- */
@@ -2730,9 +2915,100 @@ document.addEventListener('input',e=>{
 document.addEventListener('click',e=>{ if(e.target.classList.contains('tblflt')) e.stopPropagation(); },true);
 
 /* =====================================================================
+ *  CLOUD SYNC (Supabase) — local-first; only active when CLOUD is
+ *  configured AND the user signs in. Publisher pushes the aggregated
+ *  store (never raw files); reviewers receive it live via Realtime.
+ * ===================================================================== */
+let sb=null, sbUser=null;
+const CLIENT_ID=Math.random().toString(36).slice(2);
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('CDN load failed')); document.head.appendChild(s); }); }
+function cloudUi(){
+  const b=$('#btnCloud'), su=$('#sideUser');
+  if(!CLOUD.url||!CLOUD.anonKey){ b.textContent='☁ Off'; b.classList.remove('on'); su.style.display='none'; return; }
+  if(sbUser){
+    b.textContent='☁ Live'; b.classList.add('on');
+    su.style.display='';
+    su.innerHTML=`<div>${(sbUser.email||'').split('@')[0]}</div><div class="role">${sbUser.email||''} · auto-sync on</div>
+      <button onclick="__signOut()">Sign out</button>`;
+  } else {
+    b.textContent='☁ Sign in'; b.classList.remove('on');
+    su.style.display='';
+    su.innerHTML=`<div>Offline mode</div><div class="role">data stays on this machine</div>
+      <button onclick="__loginOpen()">Sign in</button>`;
+  }
+  if(document.getElementById('tab-settings')?.innerHTML) renderSettings();
+}
+window.__loginOpen=()=>{ $('#loginErr').textContent=''; $('#loginModal').classList.add('open'); $('#loginEmail').focus(); };
+window.__loginClose=()=>$('#loginModal').classList.remove('open');
+window.__signOut=async()=>{ try{ await sb.auth.signOut(); }catch(e){} sbUser=null; cloudUi(); toast('Signed out — back to offline mode'); };
+/* debounced auto-publish: any local change while signed in syncs itself */
+let _pubT=null;
+function schedulePublish(){ if(!sbUser) return; clearTimeout(_pubT); _pubT=setTimeout(cloudPublish,1500); }
+async function cloudInit(){
+  if(!CLOUD.url||!CLOUD.anonKey){ cloudUi(); return; }
+  try{
+    await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js');
+    sb=window.supabase.createClient(CLOUD.url,CLOUD.anonKey);
+    const {data:{session}}=await sb.auth.getSession();
+    if(session){ sbUser=session.user; await cloudPull(false); cloudSubscribe(); }
+  }catch(e){ toast('Cloud init failed: '+e.message,true); }
+  cloudUi();
+  if(sb&&!sbUser) __loginOpen();          // portal-style: greet with the sign-in card
+}
+async function cloudSignInGo(){
+  try{
+    if(!sb) throw new Error('cloud not initialised — check internet connection');
+    $('#loginErr').textContent='';
+    const {data,error}=await sb.auth.signInWithPassword({email:$('#loginEmail').value.trim(),password:$('#loginPw').value});
+    if(error) throw error;
+    sbUser=data.user; $('#loginPw').value=''; __loginClose();
+    toast('✔ Signed in as '+sbUser.email);
+    await cloudPull(true); cloudSubscribe(); cloudUi();
+  }catch(e){ $('#loginErr').textContent='Sign-in failed: '+e.message; }
+}
+async function cloudPublish(){
+  if(!sb||!sbUser) return;
+  try{
+    const {error}=await sb.from(CLOUD.table).upsert({id:CLOUD.rowId,data:state.store,
+      updated_by:sbUser.email,client_id:CLIENT_ID,updated_at:new Date().toISOString()});
+    if(error) throw error;
+    toast('⤴ Published — reviewers updated');
+  }catch(e){ toast('Publish failed: '+e.message,true); }
+}
+async function cloudPull(notify=true){
+  if(!sb||!sbUser) return;
+  try{
+    const {data,error}=await sb.from(CLOUD.table).select('data,updated_by,updated_at').eq('id',CLOUD.rowId).maybeSingle();
+    if(error) throw error;
+    if(data?.data?.months&&Object.keys(data.data.months).length){
+      state.store=data.data; saveStore(); state.month=null; refreshMonths(); renderAll();
+      if(notify) toast('⤵ Loaded data published by '+(data.updated_by||'?')+' ('+String(data.updated_at).slice(0,16).replace('T',' ')+')');
+    } else if(notify) toast('No published data in the cloud yet');
+  }catch(e){ toast('Pull failed: '+e.message,true); }
+}
+function cloudSubscribe(){
+  sb.channel('ssp-store')
+    .on('postgres_changes',{event:'*',schema:'public',table:CLOUD.table,filter:'id=eq.'+CLOUD.rowId},p=>{
+      const row=p.new;
+      if(!row||row.client_id===CLIENT_ID) return;      // ignore own writes
+      if(row.data?.months){ state.store=row.data; saveStore(); state.month=null; refreshMonths(); renderAll();
+        toast('🔄 Live update from '+(row.updated_by||'a reviewer')); }
+    }).subscribe();
+}
+
+/* =====================================================================
  *  WIRING
  * ===================================================================== */
-loadStore(); refreshMonths(); renderAll();
+loadStore(); refreshMonths(); renderAll(); cloudInit();
+$('#btnCloud').addEventListener('click',()=>{
+  if(!CLOUD.url||!CLOUD.anonKey){ toast('Cloud not configured — see Settings & Data',true); return; }
+  if(sbUser){ $$('#tabs button').find(b=>b.dataset.tab==='settings')?.click(); }
+  else __loginOpen();
+});
+$('#loginGo').addEventListener('click',cloudSignInGo);
+$('#loginPw').addEventListener('keydown',e=>{ if(e.key==='Enter') cloudSignInGo(); });
+$('#loginCancel').addEventListener('click',__loginClose);
+$('#loginModal').addEventListener('click',e=>{ if(e.target.id==='loginModal') __loginClose(); });
 
 const drop=$('#drop');
 ;['dragover','dragenter'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add('hot');}));
@@ -2750,10 +3026,19 @@ $('#btnUSD').onclick=()=>{state.cur='USD';$('#btnUSD').classList.add('on');$('#b
 $('#btnEN').onclick=()=>{state.lang='en';$('#btnEN').classList.add('on');$('#btnVI').classList.remove('on');renderAll();};
 $('#btnVI').onclick=()=>{state.lang='vi';$('#btnVI').classList.add('on');$('#btnEN').classList.remove('on');renderAll();};
 
-$('#btnExport').onclick=()=>{
+window.__backup=()=>{
   const blob=new Blob([JSON.stringify(state.store,null,1)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='ssp-dashboard-history-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+  toast('💾 Backup downloaded');
+};
+window.__restore=()=>$('#fileImport').click();
+window.__clearMonth=()=>{
+  if(!state.month) return;
+  if(confirm('Delete stored data for '+fmtMonthKey(state.month)+'?')){
+    delete state.store.months[state.month]; saveStore(); state.month=null; refreshMonths(); renderAll();
+    schedulePublish();
+  }
 };
 
 /* ---------- Export Excel: one multi-sheet workbook of the whole board pack ---------- */
@@ -2783,7 +3068,7 @@ function buildExportWb(){
   const ws0=XLSX.utils.aoa_to_sheet(aoa); ws0['!cols']=[{wch:28},{wch:16},{wch:16},{wch:16},{wch:12},{wch:12}];
   XLSX.utils.book_append_sheet(wb,ws0,'Cockpit');
   /* every rendered table, tab by tab (exports exactly what is on screen) */
-  const tabsX=[['forecast','Forecast'],['rooms','Rooms'],['seg','Segmentation'],['fnb','F&B'],['other','Other Ops'],['undist','Undistributed'],
+  const tabsX=[['exec','Exec Summary'],['forecast','Forecast'],['rooms','Rooms'],['seg','Segmentation'],['fnb','F&B'],['other','Other Ops'],['undist','Undistributed'],
     ['reva','Revenue Analysis'],['market','Market STR'],['heat','Patterns'],['bench','HotStats'],['conso','Consolidated'],['eng','Engineering'],['dq','Data Quality']];
   for(const [id,name] of tabsX){
     document.querySelectorAll('#tab-'+id+' table').forEach((tb,i)=>{
@@ -2821,20 +3106,13 @@ function cleanupPrint(){
 window.addEventListener('beforeprint',preparePrint);
 window.addEventListener('afterprint',cleanupPrint);
 $('#btnPrint').onclick=()=>{ preparePrint(); setTimeout(()=>window.print(),150); };
-$('#btnImport').onclick=()=>$('#fileImport').click();
 $('#fileImport').addEventListener('change',async e=>{
   try{ const s=JSON.parse(await e.target.files[0].text());
     if(!s.months) throw new Error('not a dashboard export');
-    state.store=s; saveStore(); state.month=Object.keys(s.months).sort().pop(); refreshMonths(); renderAll(); toast('✔ history imported'); }
-  catch(err){ toast('Import failed: '+err.message,true); }
+    state.store=s; saveStore(); state.month=Object.keys(s.months).sort().pop(); refreshMonths(); renderAll(); toast('✔ history restored'); schedulePublish(); }
+  catch(err){ toast('Restore failed: '+err.message,true); }
   e.target.value='';
 });
-$('#btnClear').onclick=()=>{
-  if(!state.month) return;
-  if(confirm('Delete stored data for '+fmtMonthKey(state.month)+'?')){
-    delete state.store.months[state.month]; saveStore(); state.month=null; refreshMonths(); renderAll();
-  }
-};
 $$('#tabs button').forEach(b=>b.addEventListener('click',()=>{
   $$('#tabs button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
   $$('section.tab').forEach(s=>s.classList.remove('on')); $('#tab-'+b.dataset.tab).classList.add('on');
