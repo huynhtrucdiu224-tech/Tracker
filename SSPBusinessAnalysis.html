@@ -58,8 +58,9 @@ section.tab{display:none}section.tab.on{display:block}
 section.tab.printshow{display:block}
 .printhead{display:none}
 /* ---------- cards / grids ---------- */
-.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:14px}
-.kpi{background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--navy);border-radius:8px;padding:9px 11px;box-shadow:0 1px 2px rgba(15,30,58,.06)}
+/* flex (not grid): cards grow so every row is filled edge-to-edge — no blank areas on the last row */
+.kgrid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.kpi{flex:1 1 180px;min-width:150px;background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--navy);border-radius:8px;padding:9px 11px;box-shadow:0 1px 2px rgba(15,30,58,.06)}
 .kpi.g{border-left-color:var(--green)}.kpi.r{border-left-color:var(--red)}.kpi.a{border-left-color:var(--gold2)}
 .kpi .t{font-size:10px;color:var(--grey);text-transform:uppercase;letter-spacing:.5px}
 .kpi .v{font-size:19px;font-weight:800;margin:2px 0;color:var(--navy)}
