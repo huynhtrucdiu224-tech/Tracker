@@ -181,14 +181,6 @@ tr.bad td{background:#fdeeec}
   </div>
 </div>
 
-<!-- ================= DROP ZONE ================= -->
-<div id="drop">
-  <b data-i18n="dropTitle">Drag &amp; drop workbooks here</b> — P&amp;L VND/USD · Monthly/Weekly/Daily STAR · HotStats · Consolidated FS
-  <span class="small" data-i18n="dropNote">(parsed 100% in your browser — data never leaves this machine)</span>
-  <input type="file" id="fileIn" multiple accept=".xlsx,.xls" style="display:none">
-  <div class="small" style="margin-top:4px"><a href="#" id="pickFiles" style="color:var(--gold)" data-i18n="orClick">…or click to choose files</a></div>
-</div>
-
 <main>
   <section class="tab" id="tab-cockpit"></section>
   <section class="tab" id="tab-office"></section>
@@ -206,7 +198,19 @@ tr.bad td{background:#fdeeec}
   <section class="tab" id="tab-reva"></section>
   <section class="tab" id="tab-eng"></section>
   <section class="tab" id="tab-dq"></section>
-  <section class="tab" id="tab-settings"></section>
+  <section class="tab" id="tab-settings">
+    <div id="settingsDyn"></div>
+    <!-- drop zone lives here (moved from the header area); listeners bind once to #drop -->
+    <div class="panel" style="padding:10px">
+      <h3 data-i18n="dropPanel">Load monthly files</h3>
+      <div id="drop">
+        <b data-i18n="dropTitle">Drag &amp; drop workbooks here</b> — P&amp;L VND/USD · Monthly/Weekly/Daily STAR · HotStats · Consolidated FS
+        <span class="small" data-i18n="dropNote">(parsed 100% in your browser — data never leaves this machine)</span>
+        <input type="file" id="fileIn" multiple accept=".xlsx,.xls" style="display:none">
+        <div class="small" style="margin-top:4px"><a href="#" id="pickFiles" style="color:var(--gold)" data-i18n="orClick">…or click to choose files</a></div>
+      </div>
+    </div>
+  </section>
 </main>
 </div><!-- /content -->
 </div><!-- /app -->
@@ -578,20 +582,44 @@ let state = {
   charts:{},
 };
 
-/* ---------- number formatting (currency aware) ---------- */
-function fx(){ // VND per USD for the selected month
-  const m=state.store.months[state.month]||{};
-  if(m.fs && m.fs.fxRate) return m.fs.fxRate;
-  if(m.pnlVND && m.pnlUSD){
+/* ---------- number formatting (currency aware) ----------
+   Monthly FX table: store.fx[monthKey] = VND per USD. Sources, in priority order:
+   manual entry (Settings & Data) → FS reference rate → implied P&L VND/USD ratio →
+   nearest month with a known rate (≤12 months away) → 26,000 documented fallback. */
+function fxDerived(mk){ // rate carried by that month's own files, if any
+  const m=state.store.months[mk]||{};
+  if(m.fs?.fxRate) return m.fs.fxRate;
+  if(m.pnlVND&&m.pnlUSD){
     const a=g(m.pnlVND,'rev.totalIncl','MTD','act'), b=g(m.pnlUSD,'rev.totalIncl','MTD','act');
     if(a&&b) return a/b;
   }
-  return 26000; // documented fallback — flagged in DQ tab when used
+  return null;
 }
+function fxOf(mk){ // resolved monthly rate — used by every conversion in the app
+  if(!mk) mk=state.month;
+  const man=state.store.fx?.[mk]; if(man>1000) return man;
+  const own=fxDerived(mk); if(own) return own;
+  /* nearest month with a manual or derived rate */
+  const known={};
+  for(const k of Object.keys(state.store.fx||{})) if(state.store.fx[k]>1000) known[k]=state.store.fx[k];
+  for(const k of Object.keys(state.store.months)){ if(known[k]) continue; const r=fxDerived(k); if(r) known[k]=r; }
+  const mi=ym=>{const [y,m2]=String(ym).split('-').map(Number);return y*12+m2;};
+  let best=null,bestD=13;
+  if(mk&&/^\d{4}-\d{2}$/.test(mk)) for(const k of Object.keys(known)){
+    const d2=Math.abs(mi(k)-mi(mk)); if(d2<bestD){bestD=d2;best=known[k];}
+  }
+  return best??26000; // documented fallback — flagged in DQ tab when used
+}
+function fxSrc(mk){ // label for the Settings FX table / DQ
+  if(state.store.fx?.[mk]>1000) return 'manual';
+  if((state.store.months[mk]||{}).fs?.fxRate) return 'FS';
+  if(fxDerived(mk)) return 'P&L';
+  return fxOf(mk)===26000?'default':'nearest';
+}
+function fx(){ return fxOf(state.month); } // VND per USD for the selected month
 function cv(v){ return v==null?null : (state.cur==='USD'? v/fx() : v); }  // convert a VND figure to display currency
-function money(v,dec){ // compact money in display currency
-  if(v==null||!isFinite(v)) return na();
-  const x=cv(v);
+function cvM(v,mk){ return v==null?null : (state.cur==='USD'? v/fxOf(mk) : v); } // month-aware conversion for cross-month series
+function moneyFmt(x,dec){ // format an already-converted amount
   const abs=Math.abs(x);
   if(state.cur==='VND'){
     if(abs>=1e9) return (x/1e9).toLocaleString('en',{maximumFractionDigits:dec??2})+' bn';
@@ -601,6 +629,14 @@ function money(v,dec){ // compact money in display currency
   if(abs>=1e6) return '$'+(x/1e6).toLocaleString('en',{maximumFractionDigits:2})+' M';
   if(abs>=1e3) return '$'+(x/1e3).toLocaleString('en',{maximumFractionDigits:1})+' K';
   return '$'+x.toLocaleString('en',{maximumFractionDigits:0});
+}
+function money(v,dec){ // compact money in display currency (selected month's FX)
+  if(v==null||!isFinite(v)) return na();
+  return moneyFmt(cv(v),dec);
+}
+function moneyM(v,mk,dec){ // month-aware: converts at THAT month's FX rate
+  if(v==null||!isFinite(v)) return na();
+  return moneyFmt(cvM(v,mk),dec);
 }
 function moneyRaw(v){ if(v==null) return na(); const x=cv(v); return x.toLocaleString('en',{maximumFractionDigits:0}); }
 function pct(v,dec=1){ return v==null||!isFinite(v)?na():(v*100).toLocaleString('en',{maximumFractionDigits:dec})+'%'; }
@@ -1363,13 +1399,41 @@ const REV_LABELS={keyacct:'Key accounts',ota:'OTA price observations',nor1:'Nor1
  *  INGEST + STORE
  * ===================================================================== */
 const LS_KEY='ssp_dash_v1';
-function loadStore(){ try{ const s=JSON.parse(localStorage.getItem(LS_KEY)); if(s&&s.months) state.store=s; }catch(e){} }
+/* ---- Primary store = IndexedDB (localStorage's ~5 MB quota chokes on a full
+   STAR history; IDB quota is measured in GB). The old localStorage key is read
+   once for migration, then removed to free the quota. ---- */
+const IDB={db:null,
+  open(){ return new Promise(res=>{ try{
+    const q=indexedDB.open('ssp_dash',1);
+    q.onupgradeneeded=()=>{ q.result.createObjectStore('kv'); };
+    q.onsuccess=()=>{ IDB.db=q.result; res(true); };
+    q.onerror=()=>res(false);
+  }catch(e){ res(false); } }); },
+  get(k){ return new Promise(res=>{ if(!IDB.db) return res(undefined);
+    try{ const t=IDB.db.transaction('kv').objectStore('kv').get(k);
+      t.onsuccess=()=>res(t.result); t.onerror=()=>res(undefined); }catch(e){ res(undefined); } }); },
+  set(k,v){ return new Promise(res=>{ if(!IDB.db) return res(false);
+    try{ const t=IDB.db.transaction('kv','readwrite').objectStore('kv').put(v,k);
+      t.onsuccess=()=>res(true); t.onerror=()=>res(false); }catch(e){ res(false); } }); }
+};
+async function loadStore(){
+  await IDB.open();
+  let s=await IDB.get('store');
+  if(!s){ /* one-time migration from localStorage */
+    try{ s=JSON.parse(localStorage.getItem(LS_KEY)); }catch(e){}
+    if(s&&s.months){ await IDB.set('store',s); try{ localStorage.removeItem(LS_KEY); }catch(e){} }
+  }
+  if(s&&s.months) state.store=s;
+  state.store.fx=state.store.fx||{};
+  await odRestoreHandle();
+}
+let _odT=null;
 function saveStore(){
   /* rolling 24-month window */
   const keys=Object.keys(state.store.months).sort();
   while(keys.length>24){ delete state.store.months[keys.shift()]; }
-  try{ localStorage.setItem(LS_KEY,JSON.stringify(state.store)); }
-  catch(e){ toast('localStorage full — export & clear old months',true); }
+  IDB.set('store',state.store).then(ok=>{ if(!ok) toast('Local save failed — download a Backup JSON now',true); });
+  clearTimeout(_odT); _odT=setTimeout(()=>odWrite(false),2000);   // mirror to the connected folder
 }
 function monthSlot(key){ state.store.months[key]=state.store.months[key]||{}; return state.store.months[key]; }
 
@@ -1669,7 +1733,7 @@ const I18N={
 en:{ subtitle:'Owner / BOD Revenue & Profit Analytics — 284 keys',
   export:'💾 Backup JSON', import:'📂 Restore JSON', clearMonth:'Clear month',
   xlsx:'⬇ Export Excel', printPdf:'🖨 Print / PDF',
-  dropTitle:'Drag & drop workbooks here', orClick:'…or click to choose files',
+  dropTitle:'Drag & drop workbooks here', orClick:'…or click to choose files', dropPanel:'Load monthly files',
   dropNote:'(parsed in your browser — data stays local unless you sign in and Publish to your private Supabase)',
   tabCockpit:'Hotel', tabOffice:'Office Building', tabRooms:'Rooms', tabFnb:'F&B', tabOther:'Other Ops',
   grpSystem:'System', tabSettings:'Settings & Data',
@@ -1678,7 +1742,7 @@ en:{ subtitle:'Owner / BOD Revenue & Profit Analytics — 284 keys',
   sideFoot:'Data stays in this browser. Export JSON regularly as backup.',
   tabSeg:'Segmentation', filter:'Filter…',
   tabForecast:'Forecast', tabHeat:'Patterns & Heatmaps', tabRevA:'Revenue Analysis', tabEng:'Engineering', tabExec:'Exec Summary ✉',
-  naTip:'Cannot be derived from the uploaded files', noData:'No data loaded for this month — drop the workbooks above.',
+  naTip:'Cannot be derived from the uploaded files', noData:'No data loaded for this month — add the workbooks in System › Settings &amp; Data.',
   kTotalRev:'Total Revenue', kGOP:'GOP', kGOPpct:'GOP %', kEBITDA:'EBITDA', kNP:'Net Profit (PBT)',
   kTRevPAR:'TRevPAR', kRevPAR:'RevPAR', kADR:'ADR', kOcc:'Occupancy', kPayroll:'Payroll % Rev', kRGI:'RGI', kGOPPAR:'GOP PAR',
   vsBud:'vs Bud', vsLY:'vs LY', top5:'Top 5 things you must look at this month', bridge:'GOP bridge — Budget → Actual (by driver)',
@@ -1704,7 +1768,7 @@ en:{ subtitle:'Owner / BOD Revenue & Profit Analytics — 284 keys',
 vi:{ subtitle:'Phân tích Doanh thu & Lợi nhuận cho Chủ đầu tư / HĐQT — 284 phòng',
   export:'💾 Sao lưu JSON', import:'📂 Phục hồi JSON', clearMonth:'Xoá tháng',
   xlsx:'⬇ Xuất Excel', printPdf:'🖨 In / PDF',
-  dropTitle:'Kéo & thả file Excel vào đây', orClick:'…hoặc bấm để chọn file',
+  dropTitle:'Kéo & thả file Excel vào đây', orClick:'…hoặc bấm để chọn file', dropPanel:'Nạp file hàng tháng',
   dropNote:'(xử lý trên trình duyệt — dữ liệu chỉ đồng bộ lên Supabase riêng khi bạn đăng nhập và Publish)',
   tabCockpit:'Khách sạn', tabOffice:'Toà văn phòng', tabRooms:'Phòng', tabFnb:'Ẩm thực', tabOther:'BP khác',
   grpSystem:'Hệ thống', tabSettings:'Cài đặt & Dữ liệu',
@@ -1713,7 +1777,7 @@ vi:{ subtitle:'Phân tích Doanh thu & Lợi nhuận cho Chủ đầu tư / HĐQ
   sideFoot:'Dữ liệu lưu trên trình duyệt. Nhớ Xuất JSON để sao lưu định kỳ.',
   tabSeg:'Phân khúc', filter:'Lọc…',
   tabForecast:'Dự báo', tabHeat:'Mẫu hình & Heatmap', tabRevA:'Phân tích doanh thu', tabEng:'Kỹ thuật', tabExec:'Thư gửi HĐQT ✉',
-  naTip:'Không thể tính từ các file đã tải lên', noData:'Chưa có dữ liệu tháng này — kéo thả file ở trên.',
+  naTip:'Không thể tính từ các file đã tải lên', noData:'Chưa có dữ liệu tháng này — nạp file trong System › Settings &amp; Data.',
   kTotalRev:'Tổng doanh thu', kGOP:'GOP', kGOPpct:'GOP %', kEBITDA:'EBITDA', kNP:'LN trước thuế',
   kTRevPAR:'TRevPAR', kRevPAR:'RevPAR', kADR:'Giá BQ (ADR)', kOcc:'Công suất', kPayroll:'Lương % DT', kRGI:'RGI', kGOPPAR:'GOP PAR',
   vsBud:'so NS', vsLY:'so CK', top5:'5 điểm HĐQT phải xem tháng này', bridge:'Cầu GOP — Ngân sách → Thực tế (theo nguyên nhân)',
@@ -2651,8 +2715,8 @@ function renderConso(d){
     ${bridgeHtml}`;
   const ks=keys;
   mkChart('chConso',{type:'bar',data:{labels:ks.map(fmtMonthKey),datasets:[
-    {label:'Hotel GOP',data:ks.map(k=>cv(fsAll[k].hotelGop?.act)),backgroundColor:'#C9A227',stack:'s'},
-    {label:'Central GOP',data:ks.map(k=>cv(fsAll[k].centralGop?.act)),backgroundColor:'#4a7dbd',stack:'s'}]},
+    {label:'Hotel GOP',data:ks.map(k=>cvM(fsAll[k].hotelGop?.act,k)),backgroundColor:'#C9A227',stack:'s'},
+    {label:'Central GOP',data:ks.map(k=>cvM(fsAll[k].centralGop?.act,k)),backgroundColor:'#4a7dbd',stack:'s'}]},
     options:{scales:{x:{stacked:true},y:{stacked:true,ticks:{callback:v=>money(v,0)}}},maintainAspectRatio:false}});
 }
 
@@ -2672,7 +2736,7 @@ function renderHeat(d){
   if(!months.length){ el.innerHTML=noData(); return; }
   const met=state.heatMetric;                        // occ | adr | revpar
   const idxName={occ:'MPI',adr:'ARI',revpar:'RGI'}[met];
-  const fmtV=v=>v==null?'':(met==='occ'?n1(v,0):money(v,1));
+  const fmtV=(v,mk)=>v==null?'':(met==='occ'?n1(v,0):moneyM(v,mk,1)); // each row converts at its own month's FX
   /* build cells[entity][month] = [7 dow avgs, total] */
   const ents=[['my','Sofitel SSP'],['comp','Comp set'],['ind','Industry / submarket'],['idx','Index '+idxName+' (SSP ÷ Comp)']];
   const grids={};
@@ -2698,7 +2762,7 @@ function renderHeat(d){
     const mn=Math.min(...vals),mx=Math.max(...vals);
     let h=`<div class="panel"><h3>${label}</h3><div style="overflow-x:auto"><table class="heat"><thead><tr><th>Month</th>${DOWS.map(x=>'<th>'+x+'</th>').join('')}<th>Total</th></tr></thead><tbody>`;
     for(const mk of rows){ const r=grids[e][mk];
-      h+=`<tr><td>${fmtMonthKey(mk)}</td>${r.slice(0,7).map(v=>`<td style="${heatColor(v,mn,mx,e==='idx')}" data-v="${v??''}">${fmtV(v)}</td>`).join('')}<td data-v="${r[7]??''}"><b>${fmtV(r[7])}</b></td></tr>`; }
+      h+=`<tr><td>${fmtMonthKey(mk)}</td>${r.slice(0,7).map(v=>`<td style="${heatColor(v,mn,mx,e==='idx')}" data-v="${v??''}">${fmtV(v,mk)}</td>`).join('')}<td data-v="${r[7]??''}"><b>${fmtV(r[7],mk)}</b></td></tr>`; }
     return h+'</tbody></table></div></div>';
   };
   /* DOW insights across all stored months */
@@ -2781,9 +2845,9 @@ function renderForecast(d){
     const totRev=roomsRev!=null&&share?roomsRev/share:null;
     const gop=totRev!=null&&gopPct!=null?totRev*gopPct:null;
     statT.push({ym:f.ym,totRev,gop});
-    rows+=`<tr><td>${fmtMonthKey(f.ym)}</td><td>${f.occ!=null?n1(f.occ,1)+'%':na()}</td><td>${money(f.adr)}</td>
-      <td>${money(f.revpar)}</td><td class="small">${money(f.revparLo)} – ${money(f.revparHi)}</td>
-      <td>${rgiProj[i]!=null?idx(rgiProj[i]):na()}</td><td>${money(roomsRev)}</td><td>${money(totRev)}</td><td>${money(gop)}</td></tr>`;
+    rows+=`<tr><td>${fmtMonthKey(f.ym)}</td><td>${f.occ!=null?n1(f.occ,1)+'%':na()}</td><td>${moneyM(f.adr,f.ym)}</td>
+      <td>${moneyM(f.revpar,f.ym)}</td><td class="small">${moneyM(f.revparLo,f.ym)} – ${moneyM(f.revparHi,f.ym)}</td>
+      <td>${rgiProj[i]!=null?idx(rgiProj[i]):na()}</td><td>${moneyM(roomsRev,f.ym)}</td><td>${moneyM(totRev,f.ym)}</td><td>${moneyM(gop,f.ym)}</td></tr>`;
   }
   /* pace validation vs Daily STAR running MTD */
   let paceHtml='';
@@ -2794,7 +2858,7 @@ function renderForecast(d){
     if(fi>=0){ const f=fc[fi], a=pd.rows.mtd;
       const occDiff=a.occ.my-(f.occ??0), adrDiff=f.adr?a.adr.my/f.adr-1:null;
       paceHtml=`<div class="alert ${Math.abs(occDiff)<5?'good':'warn'}"><div class="h">Pace check — ${fmtMonthKey(pk)} running MTD vs forecast</div>
-        <div class="d">Actual MTD Occ ${n1(a.occ.my,1)}% vs forecast ${n1(f.occ,1)}% (${pts(occDiff)}) · ADR ${money(a.adr.my)} vs ${money(f.adr)} (${pct(adrDiff)}). ${Math.abs(occDiff)<5?'Tracking in line — forecast holds.':occDiff>0?'Running AHEAD of forecast — hold or push rate rather than volume.':'Running BEHIND forecast — revisit pickup and rate strategy for the month.'}</div></div>`;
+        <div class="d">Actual MTD Occ ${n1(a.occ.my,1)}% vs forecast ${n1(f.occ,1)}% (${pts(occDiff)}) · ADR ${moneyM(a.adr.my,pk)} vs ${moneyM(f.adr,pk)} (${pct(adrDiff)}). ${Math.abs(occDiff)<5?'Tracking in line — forecast holds.':occDiff>0?'Running AHEAD of forecast — hold or push rate rather than volume.':'Running BEHIND forecast — revisit pickup and rate strategy for the month.'}</div></div>`;
     }
   }
   /* OTA independent observation */
@@ -2812,7 +2876,7 @@ function renderForecast(d){
     const otaProj=olsNext(basket,[1,2,3]);
     const last=oM.length-1;
     let posRows=comps.concat(sspH?[sspH]:[]).map(h=>{ const s=ota.series[h][oM[last]]||{};
-      return `<tr class="${/sofitel/i.test(h)?'tot':''}"><td>${h}</td><td>${money(s.avg)}</td><td>${money(s.min)}</td><td>${money(s.max)}</td><td>${s.n??''}</td></tr>`; }).join('');
+      return `<tr class="${/sofitel/i.test(h)?'tot':''}"><td>${h}</td><td>${moneyM(s.avg,oM[last])}</td><td>${moneyM(s.min,oM[last])}</td><td>${moneyM(s.max,oM[last])}</td><td>${s.n??''}</td></tr>`; }).join('');
     otaHtml=`<div class="cols c2">
       <div class="panel"><h3>OTA price observation vs STR (validation)</h3><div class="chartbox"><canvas id="chOta"></canvas></div>
         <div class="small" style="margin-top:6px">${pairs.length?`Across ${pairs.length} overlapping months the OTA basket runs ${pct(ratio-1)} vs STR comp-set ADR — ${Math.abs(ratio-1)<.15?'directionally consistent; STR data validated':'large gap — OTA scrape covers BAR only, treat as directional'}. Basket projection next 3 months: ${otaProj.map(v=>money(v)).join(' · ')}.`:'No overlapping months with STR yet.'}
@@ -2843,7 +2907,7 @@ function renderForecast(d){
     const minI=cf.closing.reduce((a,v,i)=>v!=null&&(a==null||v<cf.closing[a])?i:a,null);
     cfHtml=`<div class="panel"><h3>Cashflow forecast — closing balance & flows</h3>
       <div class="chartbox"><canvas id="chCf"></canvas></div>
-      <div class="small" style="margin-top:6px">Lowest closing balance: <b>${money(cf.closing[minI])}</b> in ${fmtMonthKey(cf.months[minI])}${cf.closing[minI]<10e9?' — <b style="color:var(--red)">below 10 bn buffer, review JVC fund advances timing</b>':''}.</div></div>`;
+      <div class="small" style="margin-top:6px">Lowest closing balance: <b>${moneyM(cf.closing[minI],cf.months[minI])}</b> in ${fmtMonthKey(cf.months[minI])}${cf.closing[minI]<10e9?' — <b style="color:var(--red)">below 10 bn buffer, review JVC fund advances timing</b>':''}.</div></div>`;
   } else cfHtml=`<div class="panel"><h3>Cashflow forecast</h3><div class="small">${na('Drop "2026 Cashflow Forecast - ….xlsx" into the drop zone')}</div></div>`;
 
   /* ---- STAR model lab (added Jul-2026, calibrated on 17 real Monthly STAR files Jan-25→May-26) ----
@@ -2946,11 +3010,11 @@ function renderForecast(d){
     ${otaHtml}`;
   /* forecast chart */
   const labels=[...M,...H].map(fmtMonthKey);
-  const act=[...series.revpar,...H.map(()=>null)].map(v=>v==null?null:cv(v));
-  const fcl=[...M.map(()=>null),...fc.map(f=>f.revpar==null?null:cv(f.revpar))];
+  const act=[...series.revpar.map((v,i)=>v==null?null:cvM(v,M[i])),...H.map(()=>null)];
+  const fcl=[...M.map(()=>null),...fc.map(f=>f.revpar==null?null:cvM(f.revpar,f.ym))];
   fcl[M.length-1]=act[M.length-1];
-  const lo=[...M.map(()=>null),...fc.map(f=>f.revparLo==null?null:cv(f.revparLo))];
-  const hi=[...M.map(()=>null),...fc.map(f=>f.revparHi==null?null:cv(f.revparHi))];
+  const lo=[...M.map(()=>null),...fc.map(f=>f.revparLo==null?null:cvM(f.revparLo,f.ym))];
+  const hi=[...M.map(()=>null),...fc.map(f=>f.revparHi==null?null:cvM(f.revparHi,f.ym))];
   mkChart('chFc',{type:'line',data:{labels,datasets:[
       {label:'RevPAR actual',data:act,borderColor:'#0B1F3A',tension:.3,pointRadius:2},
       {label:'Forecast',data:fcl,borderColor:'#C9A227',borderDash:[6,4],tension:.3,pointRadius:3},
@@ -2987,25 +3051,25 @@ function renderForecast(d){
   if(otaChart){
     const {oM,comps,basket,strOnOta,ota}=otaChart;
     mkChart('chOta',{type:'line',data:{labels:oM.map(fmtMonthKey),datasets:[
-        ...comps.map((h,i)=>({label:h,data:oM.map(m=>ota.series[h][m]?cv(ota.series[h][m].avg):null),borderColor:['#9CA3AF','#6B7280','#c0a0a0','#8fa8c8'][i%4],borderWidth:1,pointRadius:0,tension:.3})),
-        {label:'OTA basket avg',data:basket.map(v=>v==null?null:cv(v)),borderColor:'#C9A227',borderWidth:2.5,tension:.3},
-        {label:'STR comp-set ADR',data:strOnOta.map(v=>v==null?null:cv(v)),borderColor:'#0B1F3A',borderDash:[5,4],borderWidth:2,tension:.3}]},
+        ...comps.map((h,i)=>({label:h,data:oM.map(m=>ota.series[h][m]?cvM(ota.series[h][m].avg,m):null),borderColor:['#9CA3AF','#6B7280','#c0a0a0','#8fa8c8'][i%4],borderWidth:1,pointRadius:0,tension:.3})),
+        {label:'OTA basket avg',data:basket.map((v,i)=>v==null?null:cvM(v,oM[i])),borderColor:'#C9A227',borderWidth:2.5,tension:.3},
+        {label:'STR comp-set ADR',data:strOnOta.map((v,i)=>v==null?null:cvM(v,oM[i])),borderColor:'#0B1F3A',borderDash:[5,4],borderWidth:2,tension:.3}]},
       options:{scales:{y:{ticks:{callback:v=>money(v,1)}}},maintainAspectRatio:false}});
   }
   if(rf){
     mkChart('chRf',{type:'bar',data:{labels:rf.months.map(fmtMonthKey),datasets:[
-        {type:'bar',label:'Total revenue',data:rf.rows.totalRev.map(cv),
+        {type:'bar',label:'Total revenue',data:rf.rows.totalRev.map((v,i)=>cvM(v,rf.months[i])),
          backgroundColor:rf.flags.map(f=>/actual/i.test(f)?'#0B1F3A':'rgba(201,162,39,.75)')},
-        {type:'line',label:'GOP',data:rf.rows.gop.map(cv),borderColor:'#1e7e4f',tension:.3},
+        {type:'line',label:'GOP',data:rf.rows.gop.map((v,i)=>cvM(v,rf.months[i])),borderColor:'#1e7e4f',tension:.3},
         {type:'line',label:'GOP % (right)',yAxisID:'y1',data:rf.rows.gopPct.map(v=>v==null?null:v*100),borderColor:'#c0392b',borderDash:[5,4],tension:.3}]},
       options:{plugins:{tooltip:{callbacks:{afterTitle:c=>rf.flags[c[0].dataIndex]}}},
         scales:{y:{ticks:{callback:v=>money(v,0)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'}}},maintainAspectRatio:false}});
   }
   if(cf){
     mkChart('chCf',{type:'bar',data:{labels:cf.months.map(fmtMonthKey),datasets:[
-        {type:'bar',label:'Cash in',data:cf.cashIn.map(cv),backgroundColor:'rgba(30,126,79,.65)'},
-        {type:'bar',label:'Cash out',data:cf.cashOut.map(v=>v==null?null:-cv(v)),backgroundColor:'rgba(192,57,43,.55)'},
-        {type:'line',label:'Closing balance',data:cf.closing.map(cv),borderColor:'#0B1F3A',borderWidth:2.5,tension:.3}]},
+        {type:'bar',label:'Cash in',data:cf.cashIn.map((v,i)=>cvM(v,cf.months[i])),backgroundColor:'rgba(30,126,79,.65)'},
+        {type:'bar',label:'Cash out',data:cf.cashOut.map((v,i)=>v==null?null:-cvM(v,cf.months[i])),backgroundColor:'rgba(192,57,43,.55)'},
+        {type:'line',label:'Closing balance',data:cf.closing.map((v,i)=>cvM(v,cf.months[i])),borderColor:'#0B1F3A',borderWidth:2.5,tension:.3}]},
       options:{scales:{y:{ticks:{callback:v=>money(v,0)}}},maintainAspectRatio:false}});
   }
 }
@@ -3226,7 +3290,7 @@ function renderOffice(d){
     <div class="panel"><h3>Leasing & tenant notes — ${fmtMonthKey(state.month)} <span class="small">(edit in Exec Summary tab)</span></h3>
       <div class="small" style="white-space:pre-wrap">${notes||'— no notes for this month yet (add them in Exec Summary → "2/ Central Plaza") —'}</div></div>`;
   mkChart('chOffice',{type:'bar',data:{labels:keys.map(fmtMonthKey),datasets:[
-      {type:'bar',label:'Central GOP',data:keys.map(k=>cv(fsAll[k].centralGop?.act)),backgroundColor:'#2e5f9e'},
+      {type:'bar',label:'Central GOP',data:keys.map(k=>cvM(fsAll[k].centralGop?.act,k)),backgroundColor:'#2e5f9e'},
       {type:'bar',label:'Budget',data:keys.map(k=>cv(fsAll[k].centralGop?.bud)),backgroundColor:'rgba(201,162,39,.55)'},
       {type:'line',label:'% of group GOP (right)',yAxisID:'y1',tension:.3,borderColor:'#1e7e4f',
         data:keys.map(k=>{const cc=fsAll[k].centralGop?.act,hh=fsAll[k].hotelGop?.act; return cc!=null&&hh!=null&&(cc+hh)?cc/(cc+hh)*100:null;})}]},
@@ -3285,9 +3349,8 @@ function renderDQ(d){
 
 /* ---------------- SETTINGS & DATA ---------------- */
 function renderSettings(){
-  const el=$('#tab-settings'); if(!el) return;
+  const el=$('#settingsDyn'); if(!el) return;
   const configured=!!(CLOUD.url&&CLOUD.anonKey);
-  const lsBytes=(localStorage.getItem(LS_KEY)||'').length;
   el.innerHTML=`
     <div class="cols c2">
       <div class="panel"><h3>Account & cloud sync</h3>
@@ -3300,20 +3363,44 @@ function renderSettings(){
           ${sbUser?'<button onclick="__signOut()">Sign out</button> <button onclick="cloudPublish()">⤴ Publish now</button> <button onclick="cloudPull(true)">⤵ Pull latest</button>':configured?'<button onclick="__loginOpen()" class="on">Sign in</button>':''}
         </div>
         <div class="small" style="margin-top:8px">Accounts are managed in Supabase → Authentication → Users. Only accounts you create there can sign in (public sign-up is disabled). Setup guide: SUPABASE-SETUP.md.</div></div>
-      <div class="panel"><h3>Data — backup & restore</h3>
+      <div class="panel"><h3>Data — storage, backup & restore</h3>
         <table><tbody>
           <tr><td>Months stored</td><td>${Object.keys(state.store.months).length} (rolling 24)</td></tr>
-          <tr><td>Local storage used</td><td>${(lsBytes/1024).toFixed(0)} KB of ~5,000 KB</td></tr>
+          <tr><td>Browser storage (IndexedDB)</td><td id="sEst">measuring…</td></tr>
+          <tr><td>Folder mirror</td><td>${odHandle?`<span class="tag g">connected</span> ${odHandle.name} <span class="small" id="odStamp">${odStamp?'last saved '+odStamp:''}</span>`
+            :odPending?`<span class="tag a">needs re-authorise</span> ${odPending.name}`
+            :'<span class="tag r">not connected</span>'}</td></tr>
           <tr><td>Selected month</td><td>${fmtMonthKey(state.month)}</td></tr>
         </tbody></table>
         <div style="margin-top:10px">
           <button onclick="__backup()">💾 Backup JSON</button>
           <button onclick="__restore()">📂 Restore JSON</button>
+          ${odHandle?`<button onclick="__odLoad()">⤵ Load from folder</button>`
+            :odPending?`<button onclick="__odReauth()" class="on">🔐 Re-authorise folder</button>`
+            :`<button onclick="__odConnect()">🗂 Connect OneDrive folder…</button>`}
           <button onclick="__clearMonth()" style="color:var(--red)">🗑 Clear selected month</button>
         </div>
-        <div class="small" style="margin-top:8px">Backup downloads the full history as one JSON file — keep a copy outside OneDrive monthly. Restore replaces everything with a backup file (and re-publishes if signed in). The cloud row is a share channel, not a backup.</div></div>
-    </div>`;
+        <div class="small" style="margin-top:8px">History lives in the browser's <b>IndexedDB</b> — the old 5 MB localStorage limit (the "storage full" warnings) is gone. <b>Connect OneDrive folder</b>: pick any folder inside your OneDrive and the app auto-saves <b>${OD_FILE}</b> there on every change; OneDrive then syncs it to the cloud, so that file is your standing backup — "Load from folder" restores from it on any machine. Browsers ask you to re-authorise the folder after a restart (one click, data untouched).</div></div>
+    </div>
+    <div class="panel"><h3>Monthly FX rates — VND per USD (applied to every USD figure, per month)</h3>
+      <div style="overflow-x:auto;max-height:340px;overflow-y:auto"><table><thead><tr><th>Month</th><th>Manual rate</th><th>Rate in use</th><th>Source</th></tr></thead>
+      <tbody>${Object.keys(state.store.months).sort().reverse().map(mk=>{ const src=fxSrc(mk);
+        return `<tr><td>${fmtMonthKey(mk)}</td>
+          <td style="text-align:right"><input type="text" value="${state.store.fx?.[mk]??''}" placeholder="—" style="width:110px;text-align:right;padding:2px 6px" onchange="__setFxRate('${mk}',this.value)"></td>
+          <td data-v="${fxOf(mk)}">${n1(fxOf(mk),0)}</td>
+          <td><span class="tag ${src==='manual'?'g':(src==='FS'||src==='P&L')?'a':'r'}">${src}</span></td></tr>`;}).join('')
+        ||'<tr><td colspan="4" class="small">No months stored yet.</td></tr>'}</tbody></table></div>
+      <div class="small" style="margin-top:8px">Source priority: <b>manual</b> (typed here) → <b>FS</b> reference rate → implied <b>P&L</b> VND÷USD ratio → <b>nearest</b> month with a known rate → default 26,000 (flagged in Data Quality). Type the accounting rate for each month to lock figures; clear the box to fall back. Rates are part of the history — they sync to reviewers and are included in backups.</div></div>`;
+  navigator.storage?.estimate?.().then(e2=>{ const t2=document.getElementById('sEst');
+    if(t2&&e2?.quota) t2.textContent=(e2.usage/1048576).toFixed(1)+' MB used of '+(e2.quota/1073741824).toFixed(1)+' GB available'; });
 }
+window.__setFxRate=(mk,v)=>{
+  state.store.fx=state.store.fx||{};
+  const n2=parseFloat(String(v).replace(/[,\s]/g,''));
+  if(n2>1000) state.store.fx[mk]=n2; else delete state.store.fx[mk];
+  saveStore(); schedulePublish(); renderAll();
+  toast(n2>1000?('FX '+fmtMonthKey(mk)+' = '+n1(n2,0)+' ₫/$ — all USD figures updated'):('FX '+fmtMonthKey(mk)+' cleared — falls back automatically'));
+};
 
 /* ---------------- top-level render ---------------- */
 function refreshMonths(){
@@ -3390,7 +3477,7 @@ function cloudUi(){
     su.innerHTML=`<div>Offline mode</div><div class="role">data stays on this machine</div>
       <button onclick="__loginOpen()">Sign in</button>`;
   }
-  if(document.getElementById('tab-settings')?.innerHTML) renderSettings();
+  if(document.getElementById('settingsDyn')?.innerHTML) renderSettings();
 }
 window.__loginOpen=()=>{ $('#loginErr').textContent=''; $('#loginModal').classList.add('open'); $('#loginEmail').focus(); };
 window.__loginClose=()=>$('#loginModal').classList.remove('open');
@@ -3451,9 +3538,61 @@ function cloudSubscribe(){
 }
 
 /* =====================================================================
+ *  FOLDER MIRROR (File System Access API) — keep the full history as a
+ *  JSON file inside a user-chosen folder. Pick a folder inside OneDrive
+ *  and the auto-saved file becomes a cloud-synced standing backup.
+ * ===================================================================== */
+const OD_FILE='ssp-dashboard-history.json';
+let odHandle=null, odPending=null, odStamp=null;
+async function odRestoreHandle(){
+  try{ const h=await IDB.get('odDir'); if(!h) return;
+    const p=await h.queryPermission({mode:'readwrite'});
+    if(p==='granted') odHandle=h; else odPending=h;      // re-authorise needs a user click
+  }catch(e){}
+}
+async function odWrite(notify){
+  if(!odHandle) return;
+  try{
+    const f=await odHandle.getFileHandle(OD_FILE,{create:true});
+    const w=await f.createWritable();
+    await w.write(JSON.stringify(state.store)); await w.close();
+    odStamp=new Date().toLocaleTimeString();
+    if(notify) toast('✔ History saved to folder "'+odHandle.name+'"');
+    const st=document.getElementById('odStamp'); if(st) st.textContent='last saved '+odStamp;
+  }catch(e){ toast('Folder save failed: '+e.message,true); odHandle=null; renderSettings(); }
+}
+window.__odConnect=async()=>{
+  try{
+    if(!window.showDirectoryPicker){ toast('This browser cannot access folders — use Edge or Chrome',true); return; }
+    odHandle=await window.showDirectoryPicker({id:'sspdash',mode:'readwrite'});
+    odPending=null; await IDB.set('odDir',odHandle);
+    await odWrite(true); renderSettings();
+  }catch(e){ if(e.name!=='AbortError') toast('Folder connect failed: '+e.message,true); }
+};
+window.__odReauth=async()=>{
+  try{ if(!odPending) return;
+    if((await odPending.requestPermission({mode:'readwrite'}))==='granted'){
+      odHandle=odPending; odPending=null; await odWrite(true); }
+    renderSettings();
+  }catch(e){ toast('Folder re-authorise failed: '+e.message,true); }
+};
+window.__odLoad=async()=>{
+  try{
+    if(!odHandle&&odPending){ await window.__odReauth(); }
+    if(!odHandle){ toast('Connect a folder first',true); return; }
+    const f=await odHandle.getFileHandle(OD_FILE);
+    const s=JSON.parse(await (await f.getFile()).text());
+    if(!s.months) throw new Error('not a dashboard history file');
+    state.store=s; state.store.fx=state.store.fx||{};
+    saveStore(); state.month=Object.keys(s.months).sort().pop();
+    refreshMonths(); renderAll(); toast('✔ History loaded from folder'); schedulePublish();
+  }catch(e){ toast('Folder load failed: '+e.message,true); }
+};
+
+/* =====================================================================
  *  WIRING
  * ===================================================================== */
-loadStore(); refreshMonths(); renderAll(); cloudInit();
+(async()=>{ await loadStore(); refreshMonths(); renderAll(); cloudInit(); })();
 $('#btnCloud').addEventListener('click',()=>{
   if(!CLOUD.url||!CLOUD.anonKey){ toast('Cloud not configured — see Settings & Data',true); return; }
   if(sbUser){ $$('#tabs button').find(b=>b.dataset.tab==='settings')?.click(); }
