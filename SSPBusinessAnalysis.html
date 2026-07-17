@@ -476,7 +476,8 @@ const MAP = {
   /* ---- HotStats Operating Statement ---- */
   hotstats: {
     sheet:/^Operating Statement$/i,
-    monthRe:/^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}$/,
+    /* newer HotStats exports abbreviate the month ("Nov 2025") — accept both forms, anchored so period ranges ("Jan 2025 - Nov 2025") never match */
+    monthRe:/^(Jan(uary)?|Feb(ruary)?|Mar(ch)?|Apr(il)?|May|Jun(e)?|Jul(y)?|Aug(ust)?|Sep(tember)?|Oct(ober)?|Nov(ember)?|Dec(ember)?)\s+\d{4}$/i,
     rows: [
       /* key, label regex, section */
       ['occ',       /^Occupancy %$/i,                          'Rooms'],
@@ -1505,6 +1506,7 @@ function ingestBuffer(name,buf){        // exposed for automated testing too
     }
     else if(type==='starDaily'){ parsed=parseStarDaily(wb); state.store.pace.daily=parsed; label='Daily STAR (pace): '+parsed.label; }
     else if(type==='hotstats'){ parsed=parseHotStats(wb);
+      if(!parsed.monthKey) toast(name+': HotStats period month NOT detected — filing under the selected month '+fmtMonthKey(state.month)+'. If that is wrong, fix the month cell in the file and re-drop.',true);
       const key=parsed.monthKey||state.month||'unknown'; const slot=monthSlot(key);
       slot.hotstats=parsed; slot.warns=(slot.warns||[]).concat(parsed.warns.map(w=>'HotStats: '+w));
       label=`HotStats → ${fmtMonthKey(key)}`;
