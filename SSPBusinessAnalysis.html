@@ -1241,13 +1241,13 @@ function parseFS(wb){
             if(/REVENUE|EXPENSES/i.test(lbl)){ cp.lines.push({label:lbl,header:true}); inPL=true; }
             continue;
           }
-          if(!inPL){ /* statistics block before "A. REVENUE" */
-            if(/^Total area/i.test(lbl)) cp.stats.totalArea=v.act;
-            else if(/^Area leased out/i.test(lbl)) cp.stats.leased=v.act;
-            else if(/^Public area/i.test(lbl)) cp.stats.publicArea=v.act;
-            else if(/^Vacant area/i.test(lbl)) cp.stats.vacant=v.act;
-            else if(/in-house used/i.test(lbl)) cp.stats.inHouse=v.act;
-            else if(/^Occupancy with revenue/i.test(lbl)) cp.stats.occ=v.act;
+          if(!inPL){ /* statistics block before "A. REVENUE" — keep full act/bud/ly/ytd for each */
+            if(/^Total area/i.test(lbl)) cp.stats.totalArea=v;
+            else if(/^Area leased out/i.test(lbl)) cp.stats.leased=v;
+            else if(/^Public area/i.test(lbl)) cp.stats.publicArea=v;
+            else if(/^Vacant area/i.test(lbl)) cp.stats.vacant=v;
+            else if(/in-house used/i.test(lbl)) cp.stats.inHouse=v;
+            else if(/^Occupancy with revenue/i.test(lbl)) cp.stats.occ=v;
             else if(/^Average rent rate/i.test(lbl)) cp.stats.avgRent=v;
             continue;
           }
@@ -1450,8 +1450,17 @@ async function parseEngPdf(buf){
     let m2; const seen=new Set();
     while((m2=locRe.exec(l))){ const k=m2[1].toUpperCase().replace(/\s/g,''); if(!seen.has(k)){ locs[k]=(locs[k]||0)+1; seen.add(k); } }
     for(const [label,re] of MAP.engSys) if(re.test(l)) sys[label]=(sys[label]||0)+1;
-    if(MAP.engCritical.test(l)&&l.length>25&&critical.length<12) critical.push(l.slice(0,160));
   }
+  /* rebuild logical items (PDF wraps one entry across several text lines) so the
+     critical watchlist shows the FULL sentence, not truncated fragments */
+  const items2=[]; let cur='';
+  for(const l of lines){
+    if(skip.test(l)) continue;
+    if(/^\d{1,3}[\.\s]/.test(l)){ if(cur.trim().length>10) items2.push(cur.trim()); cur=l; }
+    else cur+=' '+l;
+  }
+  if(cur.trim().length>10) items2.push(cur.trim());
+  for(const it of items2){ if(MAP.engCritical.test(it)&&it.length>25&&critical.length<16) critical.push(it.replace(/\s+/g,' ').slice(0,500)); }
   return {monthKey,wo,locs,sys,critical,items:maxItem,pages:pdf.numPages};
 }
 
@@ -2393,6 +2402,14 @@ function renderMarket(d){
   const spBtns=[['cm','Current month'],['ytd','YTD'],['r3','Run 3M'],['r12','Run 12M']]
     .map(([k,l])=>`<button class="heatbtn ${sp===k?'on':''}" onclick="__setSnapPer('${k}')">${l}</button>`).join(' ');
   const SNAP_MET=[['occ','Occupancy',v=>v==null?na():n1(v,1)+'%'],['adr','ADR',v=>starMoney(v)],['revpar','RevPAR',v=>starMoney(v)]];
+  /* current rank in the comp set (latest non-empty value of the STAR Comp "Rank" row) */
+  const compN=(st.census?.props!=null?st.census.props:4)+1;   // subject + comps
+  const rankOf=met=>{ const r=st.comp?.[met]?.rank; if(!r) return null;
+    for(let i=r.length-1;i>=0;i--){ const v=String(r[i]??'').trim(); if(v){ const n=parseInt(v,10); return isNaN(n)?v:n; } } return null; };
+  const rankCell=met=>{ const rk=rankOf(met); if(rk==null) return '<td>—</td>';
+    const n=typeof rk==='number'?rk:parseInt(rk,10);
+    const cl2=isNaN(n)?'':(n===1?'pos':n>=compN-1?'neg':'');
+    return `<td data-v="${isNaN(n)?'':n}" class="${cl2}"><b>${isNaN(n)?rk:'#'+n+' of '+compN}</b></td>`; };
   let snapRows='';
   for(const [met,label,fmt] of SNAP_MET){
     const pv = sum[met]?.prop?.[sp]     ?? gl[sp]?.[met]?.my;
@@ -2406,7 +2423,7 @@ function renderMarket(d){
     snapRows+=`<tr><td>${label}</td><td data-v="${pv??''}">${fmt(pv)}</td>${chgTd(pc)}
       <td data-v="${cVal??''}">${fmt(cVal)}</td>${chgTd(cChg)}
       <td data-v="${iv??''}">${idx(iv)}</td>${chgTd(ic)}
-      <td data-v="${mv??''}">${fmt(mv)}</td>${chgTd(mc)}</tr>`;
+      <td data-v="${mv??''}">${fmt(mv)}</td>${chgTd(mc)}${rankCell(met)}</tr>`;
   }
 
   /* ---------- Property Scorecard: CM / YTD / 3M / 12M, levels + YoY % change ---------- */
@@ -2569,9 +2586,9 @@ function renderMarket(d){
     <div class="cols c2">
       <div class="panel"><h3>STR Snapshot — ${fmtMonthKey(st.monthKey)} ${st.provisional?'<span class="tag a">PROVISIONAL</span>':''}
           <span class="noprint" style="float:right">${spBtns}</span></h3>
-        <table><thead><tr><th></th><th>Property</th><th>% Chg</th><th>Comp Set</th><th>% Chg</th><th>Index</th><th>% Chg</th><th>Market</th><th>% Chg</th></tr></thead>
+        <table><thead><tr><th></th><th>Property</th><th>% Chg</th><th>Comp Set</th><th>% Chg</th><th>Index</th><th>% Chg</th><th>Market</th><th>% Chg</th><th>Rank</th></tr></thead>
         <tbody>${snapRows}</tbody></table>
-        <div class="small" style="margin-top:6px">% Chg = vs same period last year (STR). Market = HCMC market row of the STAR Summary sheet${sum.occ?.market?'':' — not in this file; Industry MTD shown when a weekly/daily STR extract is loaded'}.</div></div>
+        <div class="small" style="margin-top:6px">% Chg = vs same period last year (STR). Market = HCMC market row of the STAR Summary sheet${sum.occ?.market?'':' — not in this file; Industry MTD shown when a weekly/daily STR extract is loaded'}. Rank = current standing among the ${compN}-property comp set (#1 = best; green = top, red = bottom).</div></div>
       <div class="panel"><h3>Property scorecard — Occ / ADR / RevPAR by period</h3>
         <table><thead><tr><th></th>${SC_PER.map(([,l])=>`<th>${l}</th><th>% Chg</th>`).join('')}</tr></thead>
         <tbody>${scRows}</tbody></table>
@@ -3422,7 +3439,10 @@ function renderEng(d){
       {type:'bar',label:'Requested',data:monthsE.map(m=>state.store.months[m].eng.wo?.total??null),backgroundColor:'#0B1F3A'},
       {type:'bar',label:'Completed',data:monthsE.map(m=>state.store.months[m].eng.wo?.done??null),backgroundColor:'#C9A227'},
       {type:'line',label:'Logged items (right)',yAxisID:'y1',data:monthsE.map(m=>state.store.months[m].eng.items??null),borderColor:'#1e7e4f',tension:.3}]},
-    options:{scales:{y1:{position:'right',grid:{drawOnChartArea:false}}},maintainAspectRatio:false}});
+    options:{scales:{
+        y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:'Work orders'}},
+        y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{precision:0},title:{display:true,text:'Logged items'}}},
+      maintainAspectRatio:false}});
   mkChart('chEngSys',{type:'bar',data:{labels:topSys.map(x=>x[0]),datasets:[{label:'Mentions',data:topSys.map(x=>x[1]),backgroundColor:'#2e5f9e'}]},
     options:{indexAxis:'y',plugins:{legend:{display:false}},maintainAspectRatio:false}});
 }
@@ -3564,6 +3584,7 @@ function renderRevA(d){
 }
 
 /* ---------------- OFFICE BUILDING (Central Plaza) ---------------- */
+window.__setCpDetail=v=>{ state.cpFull=v; renderOffice(derive()); };
 function renderOffice(d){
   const el=$('#tab-office');
   const fsAll={}; for(const[k,m] of Object.entries(state.store.months)) if(m.fs) fsAll[k]=m.fs;
@@ -3574,6 +3595,11 @@ function renderOffice(d){
   const grp=(c[f]??0)+(h[f]??0);
   const notes=(state.store.execNotes?.[state.month]?.cp)||'';
   const keys=Object.keys(fsAll).sort();
+  const cp=fs.centralPL, cst=cp?.stats||{};
+  const pick=o=>o?(P==='YTD'?o.ytd:o.act):null;                 // MTD/YTD aware
+  const noiV=cp?.noi?pick(cp.noi):c[f], revV=pick(cp?.totalRev), expV=pick(cp?.totalExp);
+  /* simple KPI card with a free-text subtitle (for the area metrics) */
+  const statCard=(title,val,sub,cls2='')=>`<div class="kpi ${cls2}"><div class="t">${title}</div><div class="v">${val}</div><div class="s">${sub||''}</div></div>`;
   const rows=keys.map(k=>{ const cc=fsAll[k].centralGop||{}, hh=fsAll[k].hotelGop||{};
     const gg=(cc.act??0)+(hh.act??0);
     return `<tr class="${k===state.month?'tot':''}"><td>${fmtMonthKey(k)}</td>
@@ -3584,29 +3610,33 @@ function renderOffice(d){
       <td data-v="${gg?cc.act/gg:''}">${gg?pct(cc.act/gg):na()}</td></tr>`; }).join('');
   el.innerHTML=`
     <div class="kgrid">
-      ${kpiCard('Central Plaza GOP — '+P,money(c[f]),varPct(c[f],c[fb]),P==='MTD'?varPct(c.act,c.ly):null)}
-      ${kpiCard('Budget',money(c[fb]),null,null)}
-      ${P==='MTD'?kpiCard('Last year',money(c.ly),null,null):kpiCard('YTD budget',money(c.ybud),null,null)}
+      ${kpiCard('Central Plaza NOI — '+P,money(noiV),varPct(c[f],c[fb]),P==='MTD'?varPct(c.act,c.ly):null)}
+      ${cp&&revV?statCard('NOI margin',pct(noiV/revV),expV!=null?'cost ratio '+pct(expV/revV):''):''}
+      ${cp&&revV?statCard('Leasing revenue',money(revV),'base rent + BOC + parking + other'):''}
+      ${cst.occ?kpiCard('Office occupancy',pct(cst.occ.act),varPct(cst.occ.act,cst.occ.bud),varPct(cst.occ.act,cst.occ.ly)):''}
+      ${cst.avgRent?kpiCard('Avg rent / m²',money(pick(cst.avgRent)),varPct(cst.avgRent.act,cst.avgRent.bud),varPct(cst.avgRent.act,cst.avgRent.ly)):''}
+      ${cst.leased?statCard('Leased area',n1(cst.leased.act,0)+' m²','of '+n1(cst.totalArea?.act,0)+' m² total · '+n1(cst.publicArea?.act,0)+' m² public'):''}
+      ${cst.vacant?statCard('Vacant area',n1(cst.vacant.act,0)+' m²',cst.inHouse?n1(cst.inHouse.act,0)+' m² JV in-house use':'',cst.vacant.act>0?'a':''):''}
       ${kpiCard('Share of consolidated GOP',grp?pct(c[f]/grp):na(),null,null)}
-      ${kpiCard('Hotel GOP (reference)',money(h[f]),varPct(h[f],h[fb]),null)}
     </div>
+    ${!cp?`<div class="panel" style="padding:8px 12px"><div class="small">⚠ The <b>office scorecard & cost detail</b> below (occupancy, rent/m², leased area, expense lines) come from the <b>Central Plaza P&amp;L block of the PHCL consolidated FS</b>. This month's stored FS predates that parser — re-drop the <b>“PHCL (VIET NAM) financial statements for ${String(+state.month.slice(5)).padStart(2,'0')}.${state.month.slice(0,4)}”</b> workbook in Settings &amp; Data to populate it.</div></div>`:''}
     <div class="cols c2">
       <div class="panel"><h3>Central Plaza GOP by month <span class="small">(from stored Consolidated FS)</span></h3>
         <div class="chartbox tall"><canvas id="chOffice"></canvas></div></div>
       <div class="panel"><h3>Monthly detail</h3>
         <table><thead><tr><th>Month</th><th>GOP</th><th>Budget</th><th>vs Bud</th><th>LY</th><th>vs LY</th><th>% of consolidated</th></tr></thead>
         <tbody>${rows}</tbody></table>
-        <div class="small" style="margin-top:6px">Office occupancy, vacant area and rental yield are not disclosed in the FS workbook — only Central GOP. Track leasing matters in the notes below (they also feed the BOD email draft).</div></div>
+        <div class="small" style="margin-top:6px">Central GOP = NET OPERATING INCOME of the office building (office occupancy, rent/m² and cost detail are on the scorecard above and the cost analysis below, when the current FS carries the Central Plaza P&L block). Leasing matters go in the notes (they feed the BOD email draft).</div></div>
     </div>
     ${(()=>{ /* cost analysis — from the "CENTRAL PLAZA - PROFIT AND LOSS STATEMENT" block of the FS */
-      const cp=fs.centralPL;
-      if(!cp) return `<div class="panel"><h3>Cost analysis — Central Plaza</h3>
-        <div class="small">${na('The Central Plaza P&L block was not found in this month\'s FS — drop the "PHCL (VIET NAM) financial statements for MM.YYYY" workbook (it carries the block below the hotel cascade).')}</div></div>`;
-      const rev=cp.totalRev?.act;
-      const lrows=cp.lines.map(l=>{
+      if(!cp) return '';   // the banner above already explains how to populate it
+      const rev=cp.totalRev?.act, full=!!state.cpFull;
+      const isSummary=l=>l.header||/^\d\.\s|^TOTAL|^NET OPERATING/i.test(l.label);
+      const shown=full?cp.lines:cp.lines.filter(isSummary);
+      const lrows=shown.map(l=>{
         if(l.header) return `<tr><td colspan="8" style="color:var(--gold);font-weight:700;border-top:1px solid var(--line)">${l.label}</td></tr>`;
-        const big=/^TOTAL|^NET OPERATING/i.test(l.label);
-        return `<tr class="${big?'tot':''}"><td>${l.label}</td>
+        const big=/^TOTAL|^NET OPERATING/i.test(l.label), sub=/^\d\.\s/.test(l.label);
+        return `<tr class="${big?'tot':''}"><td style="${sub?'':'padding-left:18px'}">${l.label}</td>
           <td data-v="${l.act??''}">${money(l.act)}</td>
           <td>${rev?pct((l.act??0)/rev):na()}</td>
           <td data-v="${l.bud??''}">${money(l.bud)}</td>
@@ -3615,11 +3645,14 @@ function renderOffice(d){
           <td class="${cls(varPct(l.act,l.ly))}">${pct(varPct(l.act,l.ly))}</td>
           <td data-v="${l.ytd??''}">${money(l.ytd)}</td></tr>`; }).join('');
       const st2=cp.stats;
-      return `<div class="panel"><h3>Cost analysis — Central Plaza P&L (from the PHCL consolidated FS)</h3>
-        <div class="small" style="margin-bottom:6px">Area: <b>${n1(st2.totalArea,0)} m²</b> total · <b>${n1(st2.leased,0)} m²</b> leased · <b>${n1(st2.vacant,0)} m²</b> vacant · avg rent <b>${money(st2.avgRent?.act)}/m²</b> (bud ${money(st2.avgRent?.bud)}, LY ${money(st2.avgRent?.ly)})</div>
+      return `<div class="panel"><h3>Cost analysis — Central Plaza P&L <span class="small">(from the PHCL consolidated FS)</span>
+        <span class="noprint" style="float:right">
+          <button class="heatbtn ${full?'':'on'}" onclick="__setCpDetail(false)">Summary</button>
+          <button class="heatbtn ${full?'on':''}" onclick="__setCpDetail(true)">Full detail</button></span></h3>
+        <div class="small" style="margin-bottom:6px">Area: <b>${n1(st2.totalArea?.act,0)} m²</b> total · <b>${n1(st2.leased?.act,0)} m²</b> leased · <b>${n1(st2.vacant?.act,0)} m²</b> vacant · occupancy <b>${pct(st2.occ?.act)}</b> · avg rent <b>${money(st2.avgRent?.act)}/m²</b> (bud ${money(st2.avgRent?.bud)}, LY ${money(st2.avgRent?.ly)})</div>
         <div style="overflow-x:auto"><table><thead><tr><th>Line</th><th>Actual</th><th>% of rev</th><th>Budget</th><th>vs Bud</th><th>LY</th><th>vs LY</th><th>YTD</th></tr></thead>
         <tbody>${lrows}</tbody></table></div>
-        <div class="small" style="margin-top:6px">${cp.totalRev&&cp.totalExp&&cp.noi?`Operating cost ratio <b>${pct(cp.totalExp.act/rev)}</b> (budget ${pct((cp.totalExp.bud??0)/(cp.totalRev.bud||1))}, LY ${pct((cp.totalExp.ly??0)/(cp.totalRev.ly||1))}) — NOI margin <b>${pct(cp.noi.act/rev)}</b>. NOI ties to the CENTRAL GOP line of the consolidated cascade.`:''}</div>
+        <div class="small" style="margin-top:6px">${full?'Full line-by-line P&L. ':'Summary — top-level revenue categories & totals. Switch to Full detail for every line. '}${cp.totalRev&&cp.totalExp&&cp.noi?`Operating cost ratio <b>${pct(cp.totalExp.act/rev)}</b> (budget ${pct((cp.totalExp.bud??0)/(cp.totalRev.bud||1))}, LY ${pct((cp.totalExp.ly??0)/(cp.totalRev.ly||1))}) — NOI margin <b>${pct(cp.noi.act/rev)}</b>. NOI ties to the CENTRAL GOP line of the consolidated cascade.`:''}</div>
         ${keys.filter(k=>fsAll[k].centralPL).length>1?'<div class="chartbox" style="margin-top:8px"><canvas id="chCpCost"></canvas></div>':''}</div>`;
     })()}
     ${(()=>{ /* top 5 things to look at — Central Plaza */
@@ -3631,7 +3664,7 @@ function renderOffice(d){
           if(rv!=null) al.push([rv<-.03?'crit':rv<0?'warn':'good','Leasing revenue vs budget '+pct(rv),`${money(cp.totalRev.act)} vs ${money(cp.totalRev.bud)} — base rent + BOC + parking + other.`]); }
         if(cp.totalExp&&cp.totalRev){ const ratio=cp.totalExp.act/cp.totalRev.act, ratioLY=(cp.totalExp.ly??0)/(cp.totalRev.ly||1);
           al.push([ratio>ratioLY+.02?'warn':'info','Cost ratio '+pct(ratio),`Operating expenses ${money(cp.totalExp.act)} = ${pct(ratio)} of revenue (LY ${pct(ratioLY)}).`]); }
-        if(cp.stats.vacant>0) al.push(['warn',n1(cp.stats.vacant,0)+' m² vacant',`Vacancy on ${n1(cp.stats.totalArea,0)} m² total — chase the leasing pipeline (potential rent gap shows in "Absorption & Turnover vacancy").`]);
+        if(cp.stats.vacant?.act>0) al.push(['warn',n1(cp.stats.vacant.act,0)+' m² vacant',`Vacancy on ${n1(cp.stats.totalArea?.act,0)} m² total — chase the leasing pipeline (potential rent gap shows in "Absorption & Turnover vacancy").`]);
         const freeRent=cp.lines.find(l=>/^Free rent/i.test(l.label)&&(l.act??0)<0);
         if(freeRent) al.push(['info','Free rent given: '+money(Math.abs(freeRent.act)),'Rent-free incentives this month — check which tenant and the term traded for it.']);
         const expIdx=cp.lines.findIndex(l=>l.header&&/OPERATING EXPENSES/i.test(l.label));
