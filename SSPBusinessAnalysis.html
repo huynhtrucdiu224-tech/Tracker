@@ -169,16 +169,18 @@ tr.bad td{background:#fdeeec}
   </div>
 </div>
 
-<!-- ================= SIGN-IN MODAL (portal style) ================= -->
+<!-- ================= ACCESS / SIGN-IN MODAL (portal style) ================= -->
 <div id="loginModal" class="noprint">
   <div class="logincard">
     <div class="head">PLAZA HOTEL COMPANY LIMITED<small>Sofitel Saigon Plaza · Central Plaza</small></div>
     <div class="body">
+      <div class="small" style="margin-bottom:8px;color:var(--grey)">Sign in with your account for full access, or continue as a viewer to see the published dashboard read-only.</div>
       <div class="err" id="loginErr"></div>
       <input id="loginEmail" type="email" placeholder="Email" autocomplete="username">
       <input id="loginPw" type="password" placeholder="Password" autocomplete="current-password">
       <button class="primary" id="loginGo">Sign in</button>
-      <button style="width:100%;margin-top:8px" id="loginCancel">Continue offline</button>
+      <div style="text-align:center;color:var(--grey);font-size:11px;margin:10px 0 6px">— or —</div>
+      <button style="width:100%" id="loginGuest">Continue without signing in (view only)</button>
     </div>
   </div>
 </div>
@@ -3742,10 +3744,22 @@ function renderDQ(d){
    write the shared cloud row lives in Supabase RLS policies. */
 function myProfile(){ return sbUser? (state.store.users?.[(sbUser.email||'').toLowerCase()]||null) : null; }
 function myRole(){
-  if(!sbUser) return 'edit';                       // offline/local file: full local control
+  if(state.viewOnly) return 'view';                // anonymous cloud viewer — read-only
+  if(!sbUser) return 'edit';                        // offline/local file: full local control
   const users=state.store.users||{};
   if(!Object.keys(users).length) return 'admin';   // bootstrap: first signed-in user sets up the list
   return myProfile()?.role||'view';                // signed in but not listed → view only
+}
+/* System tabs (Data Quality, User Management, Settings) are only for account holders.
+   Anonymous viewers see the analytics tabs but never the data-management tabs. */
+function applyTabVisibility(){
+  const sysTabs=['dq','users','settings'];
+  const cloudOn=!!(CLOUD.url&&CLOUD.anonKey);
+  const show=!cloudOn||!!sbUser;             // local tool (no cloud) always shows them; cloud → account holders only
+  sysTabs.forEach(t=>{ const b=$$('#tabs button').find(x=>x.dataset.tab===t); if(b) b.style.display=show?'':'none'; });
+  const active=$$('#tabs button').find(b=>b.classList.contains('on'));
+  if(active&&!show&&sysTabs.includes(active.dataset.tab))
+    $$('#tabs button').find(b=>b.dataset.tab==='conso')?.click();
 }
 window.__userSet=(email,field,val)=>{
   if(myRole()!=='admin'){ toast('Only an admin can change user profiles',true); return; }
@@ -3782,7 +3796,17 @@ function renderUsers(){
     <td><select ${admin?'':'disabled'} onchange="__userSet('${em}','role',this.value)">
       ${['admin','edit','view'].map(r=>`<option value="${r}" ${(u.role||'view')===r?'selected':''}>${r}</option>`).join('')}</select></td>
     <td>${admin?`<button onclick="__userDel('${em}')" style="color:var(--red)" title="Remove">✕</button>`:''}</td></tr>`).join('');
+  const pub=state.store.publicView===true;
   el.innerHTML=`
+    <div class="panel"><h3>Access policy — live link</h3>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:8px;cursor:${admin?'pointer':'default'}">
+          <input type="checkbox" ${pub?'checked':''} ${admin?'':'disabled'} onchange="__setPublicView(this.checked)" style="width:16px;height:16px">
+          <b>Allow viewing without signing in</b></label>
+        <span class="tag ${pub?'g':'r'}">${pub?'PUBLIC VIEW ON':'SIGN-IN REQUIRED'}</span>
+      </div>
+      <div class="small" style="margin-top:8px">When <b>on</b>, anyone opening the live link can choose “Continue without signing in” and see the published dashboard <b>read-only</b> — the System tabs (Data Quality, User Management, Settings) stay hidden and nothing can be edited. When <b>off</b>, the landing page requires an account. ${admin?'':'<i>Only an admin can change this.</i>'}
+      <br><b>Note:</b> this also needs a Supabase RLS policy allowing anonymous <code>select</code> on the store row for the read to succeed — see SUPABASE-SETUP.md. Without it, “Continue without signing in” will report it cannot load the data.</div></div>
     <div class="panel"><h3>Users & permissions ${sbUser?'':'<span class="tag a">offline — sign in to manage the shared list</span>'}</h3>
       <table><thead><tr><th>Email (Supabase account)</th><th>Display name</th><th>Position</th><th>Permission</th><th></th></tr></thead>
       <tbody>${rows||'<tr><td colspan="5" class="small">No users listed yet — the first signed-in user acts as admin: add yourself first (role admin), then your reviewers.</td></tr>'}</tbody></table>
@@ -3922,6 +3946,7 @@ const CLIENT_ID=Math.random().toString(36).slice(2);
 function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('CDN load failed')); document.head.appendChild(s); }); }
 function cloudUi(){
   const b=$('#btnCloud'), su=$('#sideUser');
+  applyTabVisibility();
   if(!CLOUD.url||!CLOUD.anonKey){ b.textContent='☁ Off'; b.classList.remove('on'); su.style.display='none'; return; }
   if(sbUser){
     b.textContent='☁ Live'; b.classList.add('on');
@@ -3931,6 +3956,11 @@ function cloudUi(){
       <div class="role">${[prof?.position,role].filter(Boolean).join(' · ')}</div>
       <div class="role">${sbUser.email||''}${role==='view'?' · read-only':' · auto-sync on'}</div>
       <button onclick="__signOut()">Sign out</button>`;
+  } else if(state.viewOnly){
+    b.textContent='☁ Viewer'; b.classList.remove('on');
+    su.style.display='';
+    su.innerHTML=`<div>Viewer</div><div class="role">read-only — not signed in</div>
+      <button onclick="__loginOpen()">Sign in</button>`;
   } else {
     b.textContent='☁ Sign in'; b.classList.remove('on');
     su.style.display='';
@@ -3941,7 +3971,31 @@ function cloudUi(){
 }
 window.__loginOpen=()=>{ $('#loginErr').textContent=''; $('#loginModal').classList.add('open'); $('#loginEmail').focus(); };
 window.__loginClose=()=>$('#loginModal').classList.remove('open');
-window.__signOut=async()=>{ try{ await sb.auth.signOut(); }catch(e){} sbUser=null; cloudUi(); toast('Signed out — back to offline mode'); };
+window.__signOut=async()=>{ try{ await sb.auth.signOut(); }catch(e){} sbUser=null; state.viewOnly=false;
+  cloudUi(); toast('Signed out'); if(sb) __loginOpen(); };
+/* Continue-as-viewer: pull the published data read-only if the admin has enabled public viewing. */
+window.__loginGuest=async()=>{
+  $('#loginErr').textContent='';
+  if(!sb){ state.viewOnly=true; __loginClose(); cloudUi(); toast('Viewing locally (read-only)'); return; }
+  const btn=$('#loginGuest'); const orig=btn.textContent; btn.textContent='Loading…'; btn.disabled=true;
+  try{
+    await cloudPull(false);
+    if(state.store.publicView===true){
+      state.viewOnly=true; __loginClose(); try{ cloudSubscribe(); }catch(e){} cloudUi();
+      toast('Viewing the published dashboard (read-only)');
+    } else {
+      state.store.publicView=undefined;   // don't leak the flag into a later local save
+      $('#loginErr').textContent='Viewing without an account is turned off by the administrator. Please sign in.';
+    }
+  }catch(e){ $('#loginErr').textContent='Could not load the published data — it may require sign-in. ('+e.message+')'; }
+  btn.textContent=orig; btn.disabled=false;
+};
+/* admin toggle: allow the live version to be viewed without signing in */
+window.__setPublicView=on=>{
+  if(myRole()!=='admin'){ toast('Only an admin can change this',true); return; }
+  state.store.publicView=!!on; saveStore(); schedulePublish(); renderUsers();
+  toast(on?'✔ Public viewing ENABLED — reviewers can open the live link without an account (System tabs stay hidden for them)':'✔ Public viewing DISABLED — everyone must sign in');
+};
 /* debounced auto-publish: any local change while signed in syncs itself */
 let _pubT=null;
 function schedulePublish(){ if(!sbUser||myRole()==='view') return; clearTimeout(_pubT); _pubT=setTimeout(cloudPublish,1500); }
@@ -3962,7 +4016,7 @@ async function cloudSignInGo(){
     $('#loginErr').textContent='';
     const {data,error}=await sb.auth.signInWithPassword({email:$('#loginEmail').value.trim(),password:$('#loginPw').value});
     if(error) throw error;
-    sbUser=data.user; $('#loginPw').value=''; __loginClose();
+    sbUser=data.user; state.viewOnly=false; $('#loginPw').value=''; __loginClose();
     toast('✔ Signed in as '+sbUser.email);
     await cloudPull(true); cloudSubscribe(); cloudUi();
   }catch(e){ $('#loginErr').textContent='Sign-in failed: '+e.message; }
@@ -3978,15 +4032,20 @@ async function cloudPublish(){
   }catch(e){ toast('Publish failed: '+e.message,true); }
 }
 async function cloudPull(notify=true){
-  if(!sb||!sbUser) return;
+  if(!sb) return false;                    // works for signed-in AND anonymous readers (RLS permitting)
   try{
     const {data,error}=await sb.from(CLOUD.table).select('data,updated_by,updated_at').eq('id',CLOUD.rowId).maybeSingle();
     if(error) throw error;
     if(data?.data?.months&&Object.keys(data.data.months).length){
-      state.store=data.data; saveStore(); state.month=null; refreshMonths(); renderAll();
+      state.store=data.data; state.store.fx=state.store.fx||{};
+      if(!state.viewOnly) saveStore();       // viewers don't persist the published copy locally
+      state.month=null; refreshMonths(); renderAll();
       if(notify) toast('⤵ Loaded data published by '+(data.updated_by||'?')+' ('+String(data.updated_at).slice(0,16).replace('T',' ')+')');
-    } else if(notify) toast('No published data in the cloud yet');
-  }catch(e){ toast('Pull failed: '+e.message,true); }
+      return true;
+    }
+    if(notify) toast('No published data in the cloud yet');
+    return false;
+  }catch(e){ if(notify) toast('Pull failed: '+e.message,true); throw e; }
 }
 function cloudSubscribe(){
   sb.channel('ssp-store')
@@ -4061,8 +4120,10 @@ $('#btnCloud').addEventListener('click',()=>{
 });
 $('#loginGo').addEventListener('click',cloudSignInGo);
 $('#loginPw').addEventListener('keydown',e=>{ if(e.key==='Enter') cloudSignInGo(); });
-$('#loginCancel').addEventListener('click',__loginClose);
-$('#loginModal').addEventListener('click',e=>{ if(e.target.id==='loginModal') __loginClose(); });
+$('#loginGuest').addEventListener('click',__loginGuest);
+/* dismiss by backdrop only once the user already has access (signed in or viewing) —
+   a first-time visitor must pick Sign in or Continue as viewer */
+$('#loginModal').addEventListener('click',e=>{ if(e.target.id==='loginModal'&&(sbUser||state.viewOnly)) __loginClose(); });
 
 /* both drop zones (Settings & Data + Data Quality) feed the SAME ingestFiles →
    one store → every tab; the shared hidden #fileIn drives click-to-choose */
