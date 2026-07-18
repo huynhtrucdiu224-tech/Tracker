@@ -111,7 +111,7 @@ tr.bad td{background:#fdeeec}
 @page{size:A4 landscape;margin:8mm}
 @media print{
   body{background:#fff;color:#111;font-size:10px}
-  #side,#hdr,#drop,#toasts,#tab-settings,#loginModal,.noprint{display:none!important}
+  #side,#hdr,#drop,#toasts,#tab-settings,#tab-users,#loginModal,.noprint{display:none!important}
   .printhead{display:block;font-size:14px;font-weight:700;color:#0B1F3A;margin:0 0 8px;border-bottom:2px solid #C9A227;padding-bottom:4px}
   section.tab{display:block!important;page-break-after:always}
   .panel,.kpi{box-shadow:none;break-inside:avoid}
@@ -124,13 +124,13 @@ tr.bad td{background:#fdeeec}
 <div id="app">
 <!-- ================= SIDEBAR ================= -->
 <aside id="side">
-  <div class="logo">PLAZA HOTEL COMPANY LIMITED<small data-i18n="subtitle">Sofitel Saigon Plaza · Central Plaza — BOD Analytics</small></div>
+  <div class="logo">PLAZA HOTEL COMPANY LIMITED<small data-i18n="subtitle">Sofitel Saigon Plaza · Central Plaza</small></div>
   <div id="tabs">
     <div class="navgroup" data-i18n="grpOverview">Overview</div>
     <button data-tab="conso" class="on" data-i18n="tabConso">Consolidated</button>
     <button data-tab="cockpit" data-i18n="tabCockpit">Sofitel Saigon Plaza</button>
     <button data-tab="office" data-i18n="tabOffice">Central Plaza</button>
-    <button data-tab="exec" data-i18n="tabExec">Exec Summary ✉</button>
+    <button data-tab="exec" data-i18n="tabExec">Executive summary</button>
     <button data-tab="forecast" data-i18n="tabForecast">Forecast</button>
     <div class="navgroup" data-i18n="grpOps">Operations</div>
     <button data-tab="rooms" data-i18n="tabRooms">Rooms</button>
@@ -146,6 +146,7 @@ tr.bad td{background:#fdeeec}
     <button data-tab="bench" data-i18n="tabBench">Benchmark — HotStats</button>
     <div class="navgroup" data-i18n="grpSystem">System</div>
     <button data-tab="dq">Data Quality <span id="warnbadge">0</span></button>
+    <button data-tab="users" data-i18n="tabUsers">User Management</button>
     <button data-tab="settings" data-i18n="tabSettings">Settings &amp; Data</button>
   </div>
   <div class="sideuser" id="sideUser" style="display:none"></div>
@@ -198,6 +199,7 @@ tr.bad td{background:#fdeeec}
   <section class="tab" id="tab-heat"></section>
   <section class="tab" id="tab-reva"></section>
   <section class="tab" id="tab-eng"></section>
+  <section class="tab" id="tab-users"></section>
   <section class="tab" id="tab-dq">
     <div id="dqDyn"></div>
     <!-- second drop zone: same ingest pipeline as Settings & Data (one store feeds every tab) -->
@@ -1211,19 +1213,49 @@ function parseFS(wb){
       else o[k]=read(re);
       if(!o[k]&&k!=='fx'&&k!=='rent') W(warns,name+': FS row not found: '+k);
     }
-    /* Central Plaza detail: capture every labelled line sitting between HOTEL GOP and
-       CENTRAL GOP — that block is the office building's revenue & cost section.
-       Generic by design: whatever line names the FS uses are shown verbatim. */
-    if(o.hotelGop?._row!=null&&o.centralGop?._row!=null&&o.centralGop._row>o.hotelGop._row+1){
-      o.centralLines=[];
-      for(let r=o.hotelGop._row+1;r<o.centralGop._row;r++){
-        const row=gd[r]||[];
-        const lbl=cellStr(row[0])||cellStr(row[1])||cellStr(row[2]);
-        if(!lbl) continue;
-        const v={label:lbl, act:num(row[cAct]), bud:cBud!=null?num(row[cBud]):null, ly:cLy!=null?num(row[cLy]):null,
-                 yact:cYact!=null?num(row[cYact]):null, ybud:cYbud!=null?num(row[cYbud]):null};
-        if(v.act==null&&v.bud==null&&v.ly==null&&v.yact==null) continue;
-        o.centralLines.push(v);
+    /* Central Plaza P&L: full block "CENTRAL PLAZA - PROFIT AND LOSS STATEMENT" sits
+       BELOW the hotel VND+USD cascade in the same FSyy.mm sheet — area statistics,
+       leasing revenue lines (base rent / BOC / parking / other), itemised operating
+       expenses and NET OPERATING INCOME (= CENTRAL GOP in the cascade).
+       Columns: label | Actual(VND) | % | Budget(VND) | % | LY Actual | % | YTD Actual | % */
+    const cpA=findRow(gd,/CENTRAL PLAZA - PROFIT AND LOSS/i);
+    if(cpA>=0){
+      let h2=-1; for(let r=cpA;r<Math.min(cpA+12,gd.length);r++){ if(rowCols(gd[r]||[],/^Actual \(VND\)/i).length){ h2=r; break; } }
+      if(h2>=0){
+        const hr=gd[h2]||[];
+        const acts=rowCols(hr,/^Actual \(VND\)/i);
+        const cA=acts[0], cL=acts[1], cY=acts[2];
+        const cB=rowCols(hr,/^Budget \(VND\)/i)[0];
+        const cp={lines:[],stats:{}}; let inPL=false;
+        for(let r=h2+1;r<Math.min(gd.length,cpA+75);r++){
+          const row=gd[r]||[];
+          const lbl=(cellStr(row[1])||cellStr(row[0])).replace(/\s+/g,' ').trim();
+          if(!lbl) continue;
+          if(/Prepared by|^Notes:|General\s*Manager|Reference average/i.test(lbl)) break;
+          const v={label:lbl, act:num(row[cA]), bud:cB!=null?num(row[cB]):null,
+                   ly:cL!=null?num(row[cL]):null, ytd:cY!=null?num(row[cY]):null,
+                   pctRev:num(row[cA+1])};
+          if(v.act==null&&v.bud==null&&v.ly==null&&v.ytd==null){
+            if(/REVENUE|EXPENSES/i.test(lbl)){ cp.lines.push({label:lbl,header:true}); inPL=true; }
+            continue;
+          }
+          if(!inPL){ /* statistics block before "A. REVENUE" */
+            if(/^Total area/i.test(lbl)) cp.stats.totalArea=v.act;
+            else if(/^Area leased out/i.test(lbl)) cp.stats.leased=v.act;
+            else if(/^Public area/i.test(lbl)) cp.stats.publicArea=v.act;
+            else if(/^Vacant area/i.test(lbl)) cp.stats.vacant=v.act;
+            else if(/in-house used/i.test(lbl)) cp.stats.inHouse=v.act;
+            else if(/^Occupancy with revenue/i.test(lbl)) cp.stats.occ=v.act;
+            else if(/^Average rent rate/i.test(lbl)) cp.stats.avgRent=v;
+            continue;
+          }
+          cp.lines.push(v);
+          if(/^TOTAL LEASING REVENUE/i.test(lbl)) cp.totalRev=v;
+          else if(/^TOTAL OPERATING EXPENSES/i.test(lbl)) cp.totalExp=v;
+          else if(/^NET OPERATING INCOME/i.test(lbl)) cp.noi=v;
+        }
+        if(cp.lines.length) o.centralPL=cp;
+        else W(warns,name+': Central Plaza P&L block found but no lines parsed');
       }
     }
     out.months[key]=o;
@@ -1467,6 +1499,7 @@ function saveStore(){
 function monthSlot(key){ state.store.months[key]=state.store.months[key]||{}; return state.store.months[key]; }
 
 async function ingestFiles(files){
+  if(myRole()==='view'){ toast('View-only account — loading files is disabled (ask an admin for edit permission)',true); return; }
   for(const f of files){
     try{
       const buf=await f.arrayBuffer();
@@ -1760,7 +1793,7 @@ function runRules(d){
  *  I18N
  * ===================================================================== */
 const I18N={
-en:{ subtitle:'Sofitel Saigon Plaza · Central Plaza — BOD Analytics',
+en:{ subtitle:'Sofitel Saigon Plaza · Central Plaza',
   export:'💾 Backup JSON', import:'📂 Restore JSON', clearMonth:'Clear month',
   xlsx:'⬇ Export Excel', printPdf:'🖨 Print / PDF',
   dropTitle:'Drag & drop workbooks here', orClick:'…or click to choose files', dropPanel:'Load monthly files',
@@ -1771,7 +1804,7 @@ en:{ subtitle:'Sofitel Saigon Plaza · Central Plaza — BOD Analytics',
   grpOverview:'Overview', grpOps:'Operations', grpMarket:'Market', grpGroup:'Group',
   sideFoot:'Data stays in this browser. Export JSON regularly as backup.',
   tabSeg:'Segmentation', filter:'Filter…',
-  tabForecast:'Forecast', tabHeat:'Patterns & Heatmaps', tabRevA:'Revenue Analysis', tabEng:'Engineering', tabExec:'Exec Summary ✉',
+  tabForecast:'Forecast', tabHeat:'Patterns & Heatmaps', tabRevA:'Revenue Analysis', tabEng:'Engineering', tabExec:'Executive summary', tabUsers:'User Management',
   naTip:'Cannot be derived from the uploaded files', noData:'No data loaded for this month — add the workbooks in System › Settings &amp; Data.',
   kTotalRev:'Total Revenue', kGOP:'GOP', kGOPpct:'GOP %', kEBITDA:'EBITDA', kNP:'Net Profit (PBT)',
   kTRevPAR:'TRevPAR', kRevPAR:'RevPAR', kADR:'ADR', kOcc:'Occupancy', kPayroll:'Payroll % Rev', kRGI:'RGI', kGOPPAR:'GOP PAR',
@@ -1795,7 +1828,7 @@ en:{ subtitle:'Sofitel Saigon Plaza · Central Plaza — BOD Analytics',
   r13t:'HotStats: cost lines worse than comp (Index<90) — top VND opportunities',
   r14t:'GOP conversion gap vs comp set — profit leakage', r14d:c=>`GOP ${c.you} vs comp ${c.comp}. Matching comp-set ratio ≈ ${c.leak} extra GOP.`,
 },
-vi:{ subtitle:'Phân tích Doanh thu & Lợi nhuận cho Chủ đầu tư / HĐQT — 284 phòng',
+vi:{ subtitle:'Sofitel Saigon Plaza · Central Plaza',
   export:'💾 Sao lưu JSON', import:'📂 Phục hồi JSON', clearMonth:'Xoá tháng',
   xlsx:'⬇ Xuất Excel', printPdf:'🖨 In / PDF',
   dropTitle:'Kéo & thả file Excel vào đây', orClick:'…hoặc bấm để chọn file', dropPanel:'Nạp file hàng tháng',
@@ -1806,7 +1839,7 @@ vi:{ subtitle:'Phân tích Doanh thu & Lợi nhuận cho Chủ đầu tư / HĐQ
   grpOverview:'Tổng hợp', grpOps:'Vận hành', grpMarket:'Thị trường', grpGroup:'Tập đoàn',
   sideFoot:'Dữ liệu lưu trên trình duyệt. Nhớ Xuất JSON để sao lưu định kỳ.',
   tabSeg:'Phân khúc', filter:'Lọc…',
-  tabForecast:'Dự báo', tabHeat:'Mẫu hình & Heatmap', tabRevA:'Phân tích doanh thu', tabEng:'Kỹ thuật', tabExec:'Thư gửi HĐQT ✉',
+  tabForecast:'Dự báo', tabHeat:'Mẫu hình & Heatmap', tabRevA:'Phân tích doanh thu', tabEng:'Kỹ thuật', tabExec:'Báo cáo điều hành', tabUsers:'Quản lý người dùng',
   naTip:'Không thể tính từ các file đã tải lên', noData:'Chưa có dữ liệu tháng này — nạp file trong System › Settings &amp; Data.',
   kTotalRev:'Tổng doanh thu', kGOP:'GOP', kGOPpct:'GOP %', kEBITDA:'EBITDA', kNP:'LN trước thuế',
   kTRevPAR:'TRevPAR', kRevPAR:'RevPAR', kADR:'Giá BQ (ADR)', kOcc:'Công suất', kPayroll:'Lương % DT', kRGI:'RGI', kGOPPAR:'GOP PAR',
@@ -1983,7 +2016,7 @@ function buildExecDraft(d){
   /* ---- 2/ CP ---- */
   L.push('2/ Central Plaza:','');
   if(d.fs){ const c=d.fs.centralGop;
-    L.push(`* Central Plaza contributed ${usdM(c?.act)} GOP this month (budget ${usdM(c?.bud)}, last year ${usdM(c?.ly)}), i.e. ${p1(div(c?.act,(c?.act??0)+(d.fs.hotelGop?.act??0)))} of group GOP.`);
+    L.push(`* Central Plaza contributed ${usdM(c?.act)} GOP this month (budget ${usdM(c?.bud)}, last year ${usdM(c?.ly)}), i.e. ${p1(div(c?.act,(c?.act??0)+(d.fs.hotelGop?.act??0)))} of consolidated GOP.`);
   } else L.push('* (Load the consolidated FS to auto-fill Central Plaza figures.)');
   if(notes.cp) L.push('* '+notes.cp.split('\n').join('\n* '));
   L.push('');
@@ -2736,7 +2769,7 @@ function renderConso(d){
     ['Total revenue (hotel)',V('totalRev',f),V('totalRev',fb),P==='MTD'?V('totalRev','ly'):null],
     ['Hotel GOP',hotel,V('hotelGop',fb),P==='MTD'?V('hotelGop','ly'):null],
     ['Central Plaza GOP (office)',central,V('centralGop',fb),P==='MTD'?V('centralGop','ly'):null],
-    ['Profit before fixed charges (Group)',V('pbfc',f),V('pbfc',fb),P==='MTD'?V('pbfc','ly'):null],
+    ['Profit before fixed charges (Consolidated)',V('pbfc',f),V('pbfc',fb),P==='MTD'?V('pbfc','ly'):null],
     ['Fixed charges',V('fixed',f),V('fixed',fb),P==='MTD'?V('fixed','ly'):null],
     ['Financial income/(exp) net',-(V('finNet',f)??0),null,P==='MTD'?-(V('finNet','ly')??0):null],
     ['Depreciation & amortisation',V('dep',f),V('dep',fb),P==='MTD'?V('dep','ly'):null],
@@ -2762,14 +2795,34 @@ function renderConso(d){
       <tr class="tot"><td>NPAT ${fmtMonthKey(state.month)}</td><td>${money(fs.npat?.act)}</td></tr></tbody></table></div>`;
   }
   const contrib= group? `${pct(hotel/group)} hotel / ${pct(central/group)} office` : '—';
+  /* top 5 things to look at — consolidated */
+  const alC=[];
+  const npV=varPct(V('npat',f),V('npat',fb));
+  if(npV!=null) alC.push([npV<-.05?'crit':npV<0?'warn':'good','NPAT vs budget '+pct(npV),`${money(V('npat',f))} vs budget ${money(V('npat',fb))}${P==='MTD'&&V('npat','ly')!=null?' · vs LY '+pct(varPct(V('npat',f),V('npat','ly'))):''}.`]);
+  const hgV=varPct(hotel,V('hotelGop',fb));
+  if(hgV!=null) alC.push([hgV<-.05?'crit':hgV<0?'warn':'good','Hotel GOP vs budget '+pct(hgV),`${money(hotel)} vs ${money(V('hotelGop',fb))} — see the Sofitel Saigon Plaza tab for the driver bridge.`]);
+  const cgV=varPct(central,V('centralGop',fb));
+  if(cgV!=null) alC.push([cgV<-.03?'crit':cgV<0?'warn':'good','Central Plaza NOI vs budget '+pct(cgV),`${money(central)} vs ${money(V('centralGop',fb))} — cost detail on the Central Plaza tab.`]);
+  const fxV=varPct(V('fixed',f),V('fixed',fb));
+  if(fxV!=null&&fxV>.05) alC.push(['warn','Fixed charges over budget '+pct(fxV),`${money(V('fixed',f))} vs ${money(V('fixed',fb))} — insurance / owner's expense drift.`]);
+  if(V('finNet',f)!=null) alC.push([V('finNet',f)<0?'info':'good','Net financial result '+money(-(V('finNet',f)??0)),'Interest & financial income/(expense), net.']);
+  if(group&&V('hotelGop','ly')!=null&&V('centralGop','ly')!=null){
+    const shTY=central/group, grpLY=(V('hotelGop','ly')??0)+(V('centralGop','ly')??0), shLY=grpLY?V('centralGop','ly')/grpLY:null;
+    if(shLY!=null) alC.push([Math.abs(shTY-shLY)>.05?'warn':'info','Office share of consolidated GOP '+pct(shTY),`vs ${pct(shLY)} LY — ${shTY>shLY?'the office is carrying more of the result (hotel softness or renovation effect)':'hotel share recovered vs LY'}.`]);
+  }
+  const rankC={crit:0,warn:1,info:2,good:3};
+  const topC=alC.sort((a,b)=>rankC[a[0]]-rankC[b[0]]).slice(0,5);
+  const topCHtml=topC.length?`<div class="panel"><h3>Top 5 things to look at — Consolidated</h3>
+    ${topC.map((a,i)=>`<div class="alert ${a[0]}"><div class="h">${i+1}. ${a[1]}</div><div class="d">${a[2]}</div></div>`).join('')}</div>`:'';
   el.innerHTML=`
     <div class="kgrid">
       ${kpiCard('Hotel GOP',money(hotel),varPct(hotel,V('hotelGop',fb)),P==='MTD'?varPct(hotel,V('hotelGop','ly')):null)}
       ${kpiCard('Central Plaza GOP',money(central),varPct(central,V('centralGop',fb)),P==='MTD'?varPct(central,V('centralGop','ly')):null)}
-      ${kpiCard('Group GOP contribution',contrib,null,null)}
+      ${kpiCard('Consolidated GOP contribution',contrib,null,null)}
       ${kpiCard('NPAT',money(V('npat',f)),varPct(V('npat',f),V('npat',fb)),P==='MTD'?varPct(V('npat',f),V('npat','ly')):null)}
       ${kpiCard('FX ref rate',fs.fxRate?n1(fs.fxRate,0)+' ₫/$':na('FS note not found'),null,null)}
     </div>
+    ${topCHtml}
     <div class="cols c2">
       <div class="panel"><h3>Consolidated cascade — ${P}</h3>
         <table><thead><tr><th>Line</th><th>Actual</th><th>Budget</th><th>LY</th><th>Var %</th></tr></thead><tbody>${rows}</tbody></table>
@@ -3532,58 +3585,81 @@ function renderOffice(d){
       ${kpiCard('Central Plaza GOP — '+P,money(c[f]),varPct(c[f],c[fb]),P==='MTD'?varPct(c.act,c.ly):null)}
       ${kpiCard('Budget',money(c[fb]),null,null)}
       ${P==='MTD'?kpiCard('Last year',money(c.ly),null,null):kpiCard('YTD budget',money(c.ybud),null,null)}
-      ${kpiCard('Share of group GOP',grp?pct(c[f]/grp):na(),null,null)}
+      ${kpiCard('Share of consolidated GOP',grp?pct(c[f]/grp):na(),null,null)}
       ${kpiCard('Hotel GOP (reference)',money(h[f]),varPct(h[f],h[fb]),null)}
     </div>
     <div class="cols c2">
       <div class="panel"><h3>Central Plaza GOP by month <span class="small">(from stored Consolidated FS)</span></h3>
         <div class="chartbox tall"><canvas id="chOffice"></canvas></div></div>
       <div class="panel"><h3>Monthly detail</h3>
-        <table><thead><tr><th>Month</th><th>GOP</th><th>Budget</th><th>vs Bud</th><th>LY</th><th>vs LY</th><th>% of group</th></tr></thead>
+        <table><thead><tr><th>Month</th><th>GOP</th><th>Budget</th><th>vs Bud</th><th>LY</th><th>vs LY</th><th>% of consolidated</th></tr></thead>
         <tbody>${rows}</tbody></table>
         <div class="small" style="margin-top:6px">Office occupancy, vacant area and rental yield are not disclosed in the FS workbook — only Central GOP. Track leasing matters in the notes below (they also feed the BOD email draft).</div></div>
     </div>
-    ${(()=>{ /* cost analysis — from the FS lines between HOTEL GOP and CENTRAL GOP */
-      const lines=fs.centralLines||[];
-      if(!lines.length) return `<div class="panel"><h3>Cost analysis — Central Plaza</h3>
-        <div class="small">${na('This FS workbook shows CENTRAL GOP as a single line — no revenue/cost rows found in the Central section. If PHCL issues a Central Plaza detail sheet, drop it and this section fills in.')}</div></div>`;
-      const vAct=l=>P==='YTD'?l.yact:l.act, vBud=l=>P==='YTD'?l.ybud:l.bud;
-      const revLine=lines.find(l=>/revenue|income|rental|rent/i.test(l.label));
-      const gopV=P==='YTD'?c.yact:c.act;
-      const costV=revLine&&vAct(revLine)!=null&&gopV!=null?vAct(revLine)-gopV:null;
-      const lrows=lines.map(l=>`<tr class="${/total/i.test(l.label)?'tot':''}"><td>${l.label}</td>
-        <td data-v="${vAct(l)??''}">${money(vAct(l))}</td><td data-v="${vBud(l)??''}">${money(vBud(l))}</td>
-        <td class="${cls(varPct(vAct(l),vBud(l)))}">${pct(varPct(vAct(l),vBud(l)))}</td>
-        ${P==='MTD'?`<td data-v="${l.ly??''}">${money(l.ly)}</td><td class="${cls(varPct(l.act,l.ly))}">${pct(varPct(l.act,l.ly))}</td>`:'<td>—</td><td>—</td>'}
-        <td>${revLine&&vAct(revLine)?pct((vAct(l)??0)/vAct(revLine)):na()}</td></tr>`).join('');
-      const trendMs=keys.filter(k=>(fsAll[k].centralLines||[]).length);
-      return `<div class="panel"><h3>Cost analysis — Central Plaza (${P})</h3>
-        <div style="overflow-x:auto"><table><thead><tr><th>Line</th><th>Actual</th><th>Budget</th><th>vs Bud</th><th>LY</th><th>vs LY</th><th>% of revenue</th></tr></thead>
-        <tbody>${lrows}
-          <tr class="tot"><td>CENTRAL GOP</td><td>${money(gopV)}</td><td>${money(P==='YTD'?c.ybud:c.bud)}</td>
-            <td class="${cls(varPct(gopV,P==='YTD'?c.ybud:c.bud))}">${pct(varPct(gopV,P==='YTD'?c.ybud:c.bud))}</td>
-            <td>${P==='MTD'?money(c.ly):'—'}</td><td>${P==='MTD'?pct(varPct(c.act,c.ly)):'—'}</td>
-            <td>${revLine&&vAct(revLine)?pct(gopV/vAct(revLine)):na()}</td></tr></tbody></table></div>
-        <div class="small" style="margin-top:6px">${costV!=null?`Implied operating cost = ${money(costV)} (revenue − GOP), a ${pct(costV/vAct(revLine))} cost ratio — GOP margin ${pct(gopV/vAct(revLine))}.`:'No revenue-type line detected in the Central section — cost ratio not derivable.'} Lines are read verbatim from the FS rows between HOTEL GOP and CENTRAL GOP.</div>
-        ${trendMs.length>1?'<div class="chartbox" style="margin-top:8px"><canvas id="chCpCost"></canvas></div>':''}</div>`;
+    ${(()=>{ /* cost analysis — from the "CENTRAL PLAZA - PROFIT AND LOSS STATEMENT" block of the FS */
+      const cp=fs.centralPL;
+      if(!cp) return `<div class="panel"><h3>Cost analysis — Central Plaza</h3>
+        <div class="small">${na('The Central Plaza P&L block was not found in this month\'s FS — drop the "PHCL (VIET NAM) financial statements for MM.YYYY" workbook (it carries the block below the hotel cascade).')}</div></div>`;
+      const rev=cp.totalRev?.act;
+      const lrows=cp.lines.map(l=>{
+        if(l.header) return `<tr><td colspan="8" style="color:var(--gold);font-weight:700;border-top:1px solid var(--line)">${l.label}</td></tr>`;
+        const big=/^TOTAL|^NET OPERATING/i.test(l.label);
+        return `<tr class="${big?'tot':''}"><td>${l.label}</td>
+          <td data-v="${l.act??''}">${money(l.act)}</td>
+          <td>${rev?pct((l.act??0)/rev):na()}</td>
+          <td data-v="${l.bud??''}">${money(l.bud)}</td>
+          <td class="${cls(varPct(l.act,l.bud))}">${pct(varPct(l.act,l.bud))}</td>
+          <td data-v="${l.ly??''}">${money(l.ly)}</td>
+          <td class="${cls(varPct(l.act,l.ly))}">${pct(varPct(l.act,l.ly))}</td>
+          <td data-v="${l.ytd??''}">${money(l.ytd)}</td></tr>`; }).join('');
+      const st2=cp.stats;
+      return `<div class="panel"><h3>Cost analysis — Central Plaza P&L (from the PHCL consolidated FS)</h3>
+        <div class="small" style="margin-bottom:6px">Area: <b>${n1(st2.totalArea,0)} m²</b> total · <b>${n1(st2.leased,0)} m²</b> leased · <b>${n1(st2.vacant,0)} m²</b> vacant · avg rent <b>${money(st2.avgRent?.act)}/m²</b> (bud ${money(st2.avgRent?.bud)}, LY ${money(st2.avgRent?.ly)})</div>
+        <div style="overflow-x:auto"><table><thead><tr><th>Line</th><th>Actual</th><th>% of rev</th><th>Budget</th><th>vs Bud</th><th>LY</th><th>vs LY</th><th>YTD</th></tr></thead>
+        <tbody>${lrows}</tbody></table></div>
+        <div class="small" style="margin-top:6px">${cp.totalRev&&cp.totalExp&&cp.noi?`Operating cost ratio <b>${pct(cp.totalExp.act/rev)}</b> (budget ${pct((cp.totalExp.bud??0)/(cp.totalRev.bud||1))}, LY ${pct((cp.totalExp.ly??0)/(cp.totalRev.ly||1))}) — NOI margin <b>${pct(cp.noi.act/rev)}</b>. NOI ties to the CENTRAL GOP line of the consolidated cascade.`:''}</div>
+        ${keys.filter(k=>fsAll[k].centralPL).length>1?'<div class="chartbox" style="margin-top:8px"><canvas id="chCpCost"></canvas></div>':''}</div>`;
+    })()}
+    ${(()=>{ /* top 5 things to look at — Central Plaza */
+      const cp=fs.centralPL; const al=[];
+      const gopVar=varPct(c.act,c.bud);
+      if(gopVar!=null) al.push([gopVar<-.03?'crit':gopVar<0?'warn':'good','NOI vs budget '+pct(gopVar),`Central GOP ${money(c.act)} vs budget ${money(c.bud)}${c.ly!=null?' · vs LY '+pct(varPct(c.act,c.ly)):''}.`]);
+      if(cp){
+        if(cp.totalRev){ const rv=varPct(cp.totalRev.act,cp.totalRev.bud);
+          if(rv!=null) al.push([rv<-.03?'crit':rv<0?'warn':'good','Leasing revenue vs budget '+pct(rv),`${money(cp.totalRev.act)} vs ${money(cp.totalRev.bud)} — base rent + BOC + parking + other.`]); }
+        if(cp.totalExp&&cp.totalRev){ const ratio=cp.totalExp.act/cp.totalRev.act, ratioLY=(cp.totalExp.ly??0)/(cp.totalRev.ly||1);
+          al.push([ratio>ratioLY+.02?'warn':'info','Cost ratio '+pct(ratio),`Operating expenses ${money(cp.totalExp.act)} = ${pct(ratio)} of revenue (LY ${pct(ratioLY)}).`]); }
+        if(cp.stats.vacant>0) al.push(['warn',n1(cp.stats.vacant,0)+' m² vacant',`Vacancy on ${n1(cp.stats.totalArea,0)} m² total — chase the leasing pipeline (potential rent gap shows in "Absorption & Turnover vacancy").`]);
+        const freeRent=cp.lines.find(l=>/^Free rent/i.test(l.label)&&(l.act??0)<0);
+        if(freeRent) al.push(['info','Free rent given: '+money(Math.abs(freeRent.act)),'Rent-free incentives this month — check which tenant and the term traded for it.']);
+        const expIdx=cp.lines.findIndex(l=>l.header&&/OPERATING EXPENSES/i.test(l.label));
+        const worst=(expIdx<0?[]:cp.lines.slice(expIdx+1)).filter(l=>!l.header&&!/^TOTAL|^NET/i.test(l.label)&&l.bud>0&&l.act>l.bud*1.1&&l.act>20e6)
+          .sort((a,b)=>(b.act-b.bud)-(a.act-a.bud))[0];
+        if(worst) al.push(['warn','Cost overrun: '+worst.label,`${money(worst.act)} vs budget ${money(worst.bud)} (+${pct(varPct(worst.act,worst.bud))}).`]);
+        if(cp.stats.avgRent?.act&&cp.stats.avgRent?.ly){ const rr=varPct(cp.stats.avgRent.act,cp.stats.avgRent.ly);
+          al.push([rr<0?'warn':'good','Avg rent rate '+pct(rr)+' vs LY',`${money(cp.stats.avgRent.act)}/m² vs ${money(cp.stats.avgRent.ly)}/m² LY (budget ${money(cp.stats.avgRent.bud)}).`]); }
+      }
+      const rank={crit:0,warn:1,info:2,good:3};
+      const top=al.sort((a,b)=>rank[a[0]]-rank[b[0]]).slice(0,5);
+      return top.length?`<div class="panel"><h3>Top 5 things to look at — Central Plaza</h3>
+        ${top.map((a,i)=>`<div class="alert ${a[0]}"><div class="h">${i+1}. ${a[1]}</div><div class="d">${a[2]}</div></div>`).join('')}</div>`:'';
     })()}
     <div class="panel"><h3>Leasing & tenant notes — ${fmtMonthKey(state.month)} <span class="small">(edit in Exec Summary tab)</span></h3>
       <div class="small" style="white-space:pre-wrap">${notes||'— no notes for this month yet (add them in Exec Summary → "2/ Central Plaza") —'}</div></div>`;
   mkChart('chOffice',{type:'bar',data:{labels:keys.map(fmtMonthKey),datasets:[
       {type:'bar',label:'Central GOP',data:keys.map(k=>cvM(fsAll[k].centralGop?.act,k)),backgroundColor:'#2e5f9e'},
       {type:'bar',label:'Budget',data:keys.map(k=>cv(fsAll[k].centralGop?.bud)),backgroundColor:'rgba(201,162,39,.55)'},
-      {type:'line',label:'% of group GOP (right)',yAxisID:'y1',tension:.3,borderColor:'#1e7e4f',
+      {type:'line',label:'% of consolidated GOP (right)',yAxisID:'y1',tension:.3,borderColor:'#1e7e4f',
         data:keys.map(k=>{const cc=fsAll[k].centralGop?.act,hh=fsAll[k].hotelGop?.act; return cc!=null&&hh!=null&&(cc+hh)?cc/(cc+hh)*100:null;})}]},
     options:{scales:{y:{ticks:{callback:v=>money(v,1)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'}}},maintainAspectRatio:false}});
-  /* Central Plaza revenue vs implied cost vs GOP across stored FS months */
+  /* Central Plaza leasing revenue vs operating cost vs NOI margin across stored FS months */
   if(document.getElementById('chCpCost')){
-    const ms2=keys.filter(k=>(fsAll[k].centralLines||[]).length);
-    const revOf=k=>{ const l=(fsAll[k].centralLines||[]).find(l2=>/revenue|income|rental|rent/i.test(l2.label)); return l?l.act:null; };
+    const ms2=keys.filter(k=>fsAll[k].centralPL);
     mkChart('chCpCost',{type:'bar',data:{labels:ms2.map(fmtMonthKey),datasets:[
-        {type:'bar',label:'Revenue',data:ms2.map(k=>cvM(revOf(k),k)),backgroundColor:'#2e5f9e'},
-        {type:'bar',label:'Implied cost (rev − GOP)',data:ms2.map(k=>{const r=revOf(k),g2=fsAll[k].centralGop?.act; return r!=null&&g2!=null?cvM(r-g2,k):null;}),backgroundColor:'rgba(192,57,43,.6)'},
-        {type:'line',label:'GOP margin % (right)',yAxisID:'y1',tension:.3,borderColor:'#1e7e4f',
-          data:ms2.map(k=>{const r=revOf(k),g2=fsAll[k].centralGop?.act; return r&&g2!=null?g2/r*100:null;})}]},
+        {type:'bar',label:'Leasing revenue',data:ms2.map(k=>cvM(fsAll[k].centralPL.totalRev?.act,k)),backgroundColor:'#2e5f9e'},
+        {type:'bar',label:'Operating expenses',data:ms2.map(k=>cvM(fsAll[k].centralPL.totalExp?.act,k)),backgroundColor:'rgba(192,57,43,.6)'},
+        {type:'line',label:'NOI margin % (right)',yAxisID:'y1',tension:.3,borderColor:'#1e7e4f',
+          data:ms2.map(k=>{const p2=fsAll[k].centralPL; return p2.noi?.act!=null&&p2.totalRev?.act?p2.noi.act/p2.totalRev.act*100:null;})}]},
       options:{scales:{y:{ticks:{callback:v=>money(v,1)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'}}},maintainAspectRatio:false}});
   }
 }
@@ -3658,6 +3734,68 @@ function renderDQ(d){
   badge.textContent=fails; badge.style.display=fails?'inline-block':'none';
 }
 
+/* ---------------- USER MANAGEMENT ----------------
+   Profiles live in store.users = { email: {name, position, role} } and sync to every
+   reviewer through the shared cloud store like all other data.
+   Roles: admin (manage users) · edit (load files, FX, notes, publish) · view (read-only).
+   NOTE: this is workflow-level control inside the app; hard enforcement of who can
+   write the shared cloud row lives in Supabase RLS policies. */
+function myProfile(){ return sbUser? (state.store.users?.[(sbUser.email||'').toLowerCase()]||null) : null; }
+function myRole(){
+  if(!sbUser) return 'edit';                       // offline/local file: full local control
+  const users=state.store.users||{};
+  if(!Object.keys(users).length) return 'admin';   // bootstrap: first signed-in user sets up the list
+  return myProfile()?.role||'view';                // signed in but not listed → view only
+}
+window.__userSet=(email,field,val)=>{
+  if(myRole()!=='admin'){ toast('Only an admin can change user profiles',true); return; }
+  state.store.users=state.store.users||{};
+  state.store.users[email]=state.store.users[email]||{};
+  state.store.users[email][field]=val;
+  saveStore(); schedulePublish(); renderUsers(); cloudUi();
+  toast('✔ '+email+' updated');
+};
+window.__userAdd=()=>{
+  if(myRole()!=='admin'){ toast('Only an admin can add users',true); return; }
+  const em=($('#nuEmail').value||'').trim().toLowerCase();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)){ toast('Enter a valid email',true); return; }
+  state.store.users=state.store.users||{};
+  if(state.store.users[em]){ toast('User already listed',true); return; }
+  state.store.users[em]={name:($('#nuName').value||'').trim(),position:($('#nuPos').value||'').trim(),role:$('#nuRole').value};
+  saveStore(); schedulePublish(); renderUsers();
+  toast('✔ '+em+' added — create the matching account in Supabase → Authentication so they can sign in');
+};
+window.__userDel=email=>{
+  if(myRole()!=='admin'){ toast('Only an admin can remove users',true); return; }
+  if(!confirm('Remove '+email+' from the user list?')) return;
+  delete state.store.users[email]; saveStore(); schedulePublish(); renderUsers();
+};
+function renderUsers(){
+  const el=$('#tab-users'); if(!el) return;
+  const users=state.store.users||{};
+  const admin=myRole()==='admin';
+  const esc=s=>(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  const rows=Object.entries(users).map(([em,u])=>`<tr class="${sbUser&&em===(sbUser.email||'').toLowerCase()?'tot':''}">
+    <td style="text-align:left">${em}</td>
+    <td><input type="text" value="${esc(u.name)}" ${admin?'':'disabled'} style="width:160px;padding:2px 6px" onchange="__userSet('${em}','name',this.value)"></td>
+    <td><input type="text" value="${esc(u.position)}" ${admin?'':'disabled'} style="width:170px;padding:2px 6px" onchange="__userSet('${em}','position',this.value)"></td>
+    <td><select ${admin?'':'disabled'} onchange="__userSet('${em}','role',this.value)">
+      ${['admin','edit','view'].map(r=>`<option value="${r}" ${(u.role||'view')===r?'selected':''}>${r}</option>`).join('')}</select></td>
+    <td>${admin?`<button onclick="__userDel('${em}')" style="color:var(--red)" title="Remove">✕</button>`:''}</td></tr>`).join('');
+  el.innerHTML=`
+    <div class="panel"><h3>Users & permissions ${sbUser?'':'<span class="tag a">offline — sign in to manage the shared list</span>'}</h3>
+      <table><thead><tr><th>Email (Supabase account)</th><th>Display name</th><th>Position</th><th>Permission</th><th></th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" class="small">No users listed yet — the first signed-in user acts as admin: add yourself first (role admin), then your reviewers.</td></tr>'}</tbody></table>
+      ${admin?`<div style="margin-top:10px" class="noprint">
+        <input id="nuEmail" type="email" placeholder="email@jvcplaza.vn" style="width:200px;padding:4px 6px">
+        <input id="nuName" type="text" placeholder="Display name" style="width:160px;padding:4px 6px">
+        <input id="nuPos" type="text" placeholder="Position" style="width:160px;padding:4px 6px">
+        <select id="nuRole"><option value="view">view</option><option value="edit">edit</option><option value="admin">admin</option></select>
+        <button onclick="__userAdd()" class="on">+ Add user</button></div>`
+      :`<div class="small" style="margin-top:8px">Your permission: <b>${myRole()}</b> — only an admin can edit this list.</div>`}
+      <div class="small" style="margin-top:8px">Roles — <b>admin</b>: manage users + everything below · <b>edit</b>: load files, edit FX rates & notes, publish · <b>view</b>: read-only (uploads, FX edits, clear/restore and publishing are disabled). Display name & position show in the sidebar. Profiles sync to all reviewers via Publish. Sign-in accounts themselves are created in Supabase → Authentication → Users; in-app roles control what each account may do here (server-side enforcement = Supabase RLS policies).</div></div>`;
+}
+
 /* ---------------- SETTINGS & DATA ---------------- */
 function renderSettings(){
   const el=$('#settingsDyn'); if(!el) return;
@@ -3706,6 +3844,7 @@ function renderSettings(){
     if(t2&&e2?.quota) t2.textContent=(e2.usage/1048576).toFixed(1)+' MB used of '+(e2.quota/1073741824).toFixed(1)+' GB available'; });
 }
 window.__setFxRate=(mk,v)=>{
+  if(myRole()==='view'){ toast('View-only account — FX rates are locked',true); renderSettings(); return; }
   state.store.fx=state.store.fx||{};
   const n2=parseFloat(String(v).replace(/[,\s]/g,''));
   if(n2>1000) state.store.fx[mk]=n2; else delete state.store.fx[mk];
@@ -3731,7 +3870,7 @@ function renderAll(){
   safe(renderFnb,'fnb'); safe(renderOther,'other'); safe(renderUndist,'undist'); safe(renderMarket,'market');
   safe(renderBench,'bench'); safe(renderConso,'conso'); safe(renderDQ,'dq'); safe(renderForecast,'forecast');
   safe(renderHeat,'heat'); safe(renderRevA,'reva'); safe(renderEng,'eng'); safe(renderExec,'exec');
-  safe(renderSettings,'settings');
+  safe(renderUsers,'users'); safe(renderSettings,'settings');
 }
 
 /* ---------- generic table sort + filter (event delegation survives re-renders) ---------- */
@@ -3787,7 +3926,10 @@ function cloudUi(){
   if(sbUser){
     b.textContent='☁ Live'; b.classList.add('on');
     su.style.display='';
-    su.innerHTML=`<div>${(sbUser.email||'').split('@')[0]}</div><div class="role">${sbUser.email||''} · auto-sync on</div>
+    const prof=myProfile(), role=myRole();
+    su.innerHTML=`<div>${prof?.name||(sbUser.email||'').split('@')[0]}</div>
+      <div class="role">${[prof?.position,role].filter(Boolean).join(' · ')}</div>
+      <div class="role">${sbUser.email||''}${role==='view'?' · read-only':' · auto-sync on'}</div>
       <button onclick="__signOut()">Sign out</button>`;
   } else {
     b.textContent='☁ Sign in'; b.classList.remove('on');
@@ -3802,7 +3944,7 @@ window.__loginClose=()=>$('#loginModal').classList.remove('open');
 window.__signOut=async()=>{ try{ await sb.auth.signOut(); }catch(e){} sbUser=null; cloudUi(); toast('Signed out — back to offline mode'); };
 /* debounced auto-publish: any local change while signed in syncs itself */
 let _pubT=null;
-function schedulePublish(){ if(!sbUser) return; clearTimeout(_pubT); _pubT=setTimeout(cloudPublish,1500); }
+function schedulePublish(){ if(!sbUser||myRole()==='view') return; clearTimeout(_pubT); _pubT=setTimeout(cloudPublish,1500); }
 async function cloudInit(){
   if(!CLOUD.url||!CLOUD.anonKey){ cloudUi(); return; }
   try{
@@ -3827,6 +3969,7 @@ async function cloudSignInGo(){
 }
 async function cloudPublish(){
   if(!sb||!sbUser) return;
+  if(myRole()==='view'){ toast('View-only account — publishing is disabled',true); return; }
   try{
     const {error}=await sb.from(CLOUD.table).upsert({id:CLOUD.rowId,data:state.store,
       updated_by:sbUser.email,client_id:CLIENT_ID,updated_at:new Date().toISOString()});
@@ -3947,9 +4090,10 @@ window.__backup=()=>{
   a.download='ssp-dashboard-history-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
   toast('💾 Backup downloaded');
 };
-window.__restore=()=>$('#fileImport').click();
+window.__restore=()=>{ if(myRole()==='view'){ toast('View-only account — restore is disabled',true); return; } $('#fileImport').click(); };
 window.__clearMonth=()=>{
   if(!state.month) return;
+  if(myRole()==='view'){ toast('View-only account — clearing data is disabled',true); return; }
   if(confirm('Delete stored data for '+fmtMonthKey(state.month)+'?')){
     delete state.store.months[state.month]; saveStore(); state.month=null; refreshMonths(); renderAll();
     schedulePublish();
