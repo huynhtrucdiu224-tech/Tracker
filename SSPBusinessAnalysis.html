@@ -70,6 +70,40 @@ section.tab.printshow{display:block}
 .panel h3{color:var(--navy);font-size:13px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--line);padding-bottom:6px}
 .cols{display:grid;gap:14px}.cols.c2{grid-template-columns:1fr 1fr}.cols.c3{grid-template-columns:1fr 1fr 1fr}
 @media(max-width:1100px){.cols.c2,.cols.c3{grid-template-columns:1fr}}
+/* ---------- phone layout (≤ ~6.9" portrait) ---------- */
+@media(max-width:640px){
+  #app{flex-direction:column}
+  /* sidebar becomes a sticky horizontal tab strip */
+  #side{width:100%;flex:none;height:auto;position:sticky;top:0;z-index:60;overflow:visible}
+  #side .logo{padding:9px 12px;font-size:12.5px;border-bottom:none;letter-spacing:.3px}
+  #side .logo small{display:none}
+  #tabs{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;border-top:1px solid var(--sideline)}
+  #tabs::-webkit-scrollbar{height:3px}
+  .navgroup{display:none}
+  #tabs button{width:auto;white-space:nowrap;border-left:none;border-bottom:3px solid transparent;padding:9px 12px;font-size:12px}
+  #tabs button.on{border-left:none;border-bottom-color:var(--gold2)}
+  .sidefoot{display:none}
+  .sideuser{margin:0;padding:8px 12px}
+  /* header: title on its own line, controls wrap below */
+  #hdr{padding:6px 8px;gap:6px}
+  #hdr .pagetitle{font-size:14px;width:100%;margin:0}
+  .ctl{width:100%;gap:5px}
+  select,button,.btn{font-size:12px;padding:5px 8px}
+  main{padding:8px 8px 48px}
+  /* single-column everything, 2-up KPI cards */
+  .cols.c2,.cols.c3{grid-template-columns:1fr}
+  .kgrid{gap:6px;margin-bottom:10px}
+  .kpi{flex:1 1 46%;min-width:0}
+  .kpi .v{font-size:16px}
+  .kpi .t{font-size:9.5px}
+  .panel{padding:10px 11px;margin-bottom:10px}
+  .panel h3{font-size:13px;line-height:1.35}
+  /* any table scrolls horizontally instead of overflowing the screen */
+  section.tab table{display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
+  td,th{padding:4px 6px}
+  .chartbox{height:240px}.chartbox.tall{height:280px}
+  .logincard{width:92vw;max-width:360px}
+}
 .chartbox{position:relative;height:280px}
 .chartbox.tall{height:340px}
 /* ---------- tables ---------- */
@@ -136,8 +170,7 @@ tr.bad td{background:#fdeeec}
     <button data-tab="rooms" data-i18n="tabRooms">Rooms</button>
     <button data-tab="seg" data-i18n="tabSeg">Segmentation</button>
     <button data-tab="fnb" data-i18n="tabFnb">F&amp;B</button>
-    <button data-tab="other" data-i18n="tabOther">Other Ops</button>
-    <button data-tab="undist" data-i18n="tabUndist">Undistributed</button>
+    <button data-tab="other" data-i18n="tabOther">Other Ops & Undistributed</button>
     <button data-tab="reva" data-i18n="tabRevA">Revenue Analysis</button>
     <button data-tab="eng" data-i18n="tabEng">Engineering</button>
     <div class="navgroup" data-i18n="grpMarket">Market</div>
@@ -192,7 +225,6 @@ tr.bad td{background:#fdeeec}
   <section class="tab" id="tab-seg"></section>
   <section class="tab" id="tab-fnb"></section>
   <section class="tab" id="tab-other"></section>
-  <section class="tab" id="tab-undist"></section>
   <section class="tab" id="tab-market"></section>
   <section class="tab" id="tab-bench"></section>
   <section class="tab on" id="tab-conso"></section>
@@ -1809,7 +1841,7 @@ en:{ subtitle:'Sofitel Saigon Plaza · Central Plaza',
   xlsx:'⬇ Export Excel', printPdf:'🖨 Print / PDF',
   dropTitle:'Drag & drop workbooks here', orClick:'…or click to choose files', dropPanel:'Load monthly files',
   dropNote:'(parsed in your browser — data stays local unless you sign in and Publish to your private Supabase)',
-  tabCockpit:'Sofitel Saigon Plaza', tabOffice:'Central Plaza', tabRooms:'Rooms', tabFnb:'F&B', tabOther:'Other Ops',
+  tabCockpit:'Sofitel Saigon Plaza', tabOffice:'Central Plaza', tabRooms:'Rooms', tabFnb:'F&B', tabOther:'Other Ops & Undistributed',
   grpSystem:'System', tabSettings:'Settings & Data',
   tabUndist:'Undistributed', tabMarket:'Market — STR', tabBench:'Benchmark — HotStats', tabConso:'Consolidated',
   grpOverview:'Overview', grpOps:'Operations', grpMarket:'Market', grpGroup:'Group',
@@ -1844,7 +1876,7 @@ vi:{ subtitle:'Sofitel Saigon Plaza · Central Plaza',
   xlsx:'⬇ Xuất Excel', printPdf:'🖨 In / PDF',
   dropTitle:'Kéo & thả file Excel vào đây', orClick:'…hoặc bấm để chọn file', dropPanel:'Nạp file hàng tháng',
   dropNote:'(xử lý trên trình duyệt — dữ liệu chỉ đồng bộ lên Supabase riêng khi bạn đăng nhập và Publish)',
-  tabCockpit:'Sofitel Saigon Plaza', tabOffice:'Central Plaza', tabRooms:'Phòng', tabFnb:'Ẩm thực', tabOther:'BP khác',
+  tabCockpit:'Sofitel Saigon Plaza', tabOffice:'Central Plaza', tabRooms:'Phòng', tabFnb:'Ẩm thực', tabOther:'BP khác & Chi phí chung',
   grpSystem:'Hệ thống', tabSettings:'Cài đặt & Dữ liệu',
   tabUndist:'Chi phí chung', tabMarket:'Thị trường — STR', tabBench:'So chuẩn — HotStats', tabConso:'Hợp nhất',
   grpOverview:'Tổng hợp', grpOps:'Vận hành', grpMarket:'Thị trường', grpGroup:'Tập đoàn',
@@ -1958,7 +1990,7 @@ function renderCockpit(d){
     data:{labels:keys.map(fmtMonthKey),datasets:[
       {type:'bar',label:'Revenue',data:rev.map(cv),backgroundColor:'rgba(74,125,189,.7)'},
       {type:'line',label:'GOP',data:gop.map(cv),borderColor:'#C9A227',backgroundColor:'#C9A227',tension:.3,yAxisID:'y'}]},
-    options:{scales:{y:{ticks:{callback:v=>money(v,0)}}},maintainAspectRatio:false}});
+    options:{scales:{y:{ticks:{callback:v=>moneyFmt(v,0)}}},maintainAspectRatio:false}});
 }
 
 /* ---------------- EXECUTIVE SUMMARY (BOD email draft) ---------------- */
@@ -2141,7 +2173,7 @@ function renderRooms(d){
       {label:'My RevPAR',data:ch.my.map(cv),borderColor:'#C9A227',tension:.3},
       {label:'Comp set',data:ch.comp.map(cv),borderColor:'#4a7dbd',tension:.3},
       {label:'RGI (right)',data:ch.idx,borderColor:'#2f9e6e',borderDash:[4,3],yAxisID:'y1',tension:.3}]},
-    options:{scales:{y:{ticks:{callback:v=>money(v,1)}},y1:{position:'right',grid:{drawOnChartArea:false}}},maintainAspectRatio:false}});
+    options:{scales:{y:{ticks:{callback:v=>moneyFmt(v,1)}},y1:{position:'right',grid:{drawOnChartArea:false}}},maintainAspectRatio:false}});
 }
 
 /* ---------------- SEGMENTATION ---------------- */
@@ -2225,7 +2257,7 @@ function renderSeg(d){
       {label:'Revenue',data:top.map(r=>cv(r.vals[A]?.rev??0)),backgroundColor:'#C9A227'},
       {label:'LY',data:top.map(r=>cv(r.vals[L]?.rev??0)),backgroundColor:'rgba(46,95,158,.55)'}]},
     options:{indexAxis:'y',plugins:{tooltip:{callbacks:{afterLabel:c=>{const r=top[c.dataIndex];return 'ARR: '+money(r.vals[A]?.arr)+' (LY '+money(r.vals[L]?.arr)+')';}}}},
-      scales:{x:{ticks:{callback:v=>money(v,1)}}},maintainAspectRatio:false}});
+      scales:{x:{ticks:{callback:v=>moneyFmt(v,1)}}},maintainAspectRatio:false}});
 }
 
 /* ---------------- F&B ---------------- */
@@ -2308,7 +2340,7 @@ function renderFnb(d){
   mkChart('chFnb',{type:'bar',data:{labels:chartLbl,datasets:[
     {label:'Actual',data:chartAct,backgroundColor:'#C9A227'},
     {label:'Budget',data:chartBud,backgroundColor:'rgba(74,125,189,.6)'}]},
-    options:{scales:{y:{ticks:{callback:v=>money(v,1)}}},maintainAspectRatio:false}});
+    options:{scales:{y:{ticks:{callback:v=>moneyFmt(v,1)}}},maintainAspectRatio:false}});
   const mo=Object.keys(covByOutlet).filter(k=>covByOutlet[k].breakfast+covByOutlet[k].lunch+covByOutlet[k].dinner>0);
   mkChart('chMeals',{type:'bar',data:{labels:mo,datasets:[
       {label:'Breakfast',data:mo.map(k=>covByOutlet[k].breakfast),backgroundColor:'#C9A227',stack:'s'},
@@ -2340,12 +2372,13 @@ function renderOther(d){
   el.innerHTML=`<div class="panel"><h3>Other operating & miscellaneous departments — ${P}</h3>
     <table><thead><tr><th>Department</th><th>Revenue</th><th>% LY</th><th>Dept profit</th><th>Profit %</th><th>Rev POR</th></tr></thead>
     <tbody>${rows||'<tr><td colspan=6>'+na('Department sheets not found in P&L workbook')+'</td></tr>'}</tbody></table>
-    <div class="small" style="margin-top:6px">POR = per occupied (sold) room. Departments flagged LOSS run negative profit and need a make-or-buy / outsourcing decision.</div></div>`;
+    <div class="small" style="margin-top:6px">POR = per occupied (sold) room. Departments flagged LOSS run negative profit and need a make-or-buy / outsourcing decision.</div></div>`
+    + undistHtml(d);
 }
 
-/* ---------------- UNDISTRIBUTED ---------------- */
-function renderUndist(d){
-  const el=$('#tab-undist'); if(!d.ok){ el.innerHTML=noData(); return; }
+/* ---------------- UNDISTRIBUTED (rendered inside the merged Other Ops tab) ---------------- */
+function undistHtml(d){
+  if(!d.ok) return '';
   const P=state.period, p=d.p;
   const tot=(k,f)=> (g(p,'undist.'+k+'.pay',P,f)??0)+(g(p,'undist.'+k+'.oth',P,f)??0) || null;
   const items=[['ag','Administration & General'],['it','IT & Telecom'],['sm','Sales & Marketing'],['pomec','POMEC (repairs & maint.)'],['energy','Energy / Utilities']];
@@ -2367,7 +2400,7 @@ function renderUndist(d){
   const marketing = d.rgi!=null? `S&M is ${pct(smPct)} of revenue while RGI is ${idx(d.rgi)} — ${d.rgi<100?'spend is NOT buying share (RGI<100): challenge channel mix & co-op programs':'spend is holding share (RGI≥100)'}.`
     : `S&M is ${pct(smPct)} of revenue; load Monthly STAR to judge if marketing is buying share.`;
   const hpar=div(g(p,'stats.staff',P,'act'),284);
-  el.innerHTML=`
+  return `
     <div class="panel"><h3>Undistributed & overheads — ${P}</h3>
     <table><thead><tr><th>Line</th><th>Actual</th><th>Budget</th><th>LY</th><th>% Rev</th><th>% Rev LY</th><th>PAR</th><th>POR</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="kgrid">
@@ -2841,19 +2874,21 @@ function renderConso(d){
       ${kpiCard('NPAT',money(V('npat',f)),varPct(V('npat',f),V('npat',fb)),P==='MTD'?varPct(V('npat',f),V('npat','ly')):null)}
       ${kpiCard('FX ref rate',fs.fxRate?n1(fs.fxRate,0)+' ₫/$':na('FS note not found'),null,null)}
     </div>
-    ${topCHtml}
+    <div class="cols c2">
+      ${topCHtml}
+      ${bridgeHtml||'<div class="panel"><h3>MoM bridge — net profit after tax</h3><div class="small">Store a prior month\'s FS to see the month-on-month NPAT bridge.</div></div>'}
+    </div>
     <div class="cols c2">
       <div class="panel"><h3>Consolidated cascade — ${P}</h3>
         <table><thead><tr><th>Line</th><th>Actual</th><th>Budget</th><th>LY</th><th>Var %</th></tr></thead><tbody>${rows}</tbody></table>
         <div class="small" style="margin-top:6px">Office-building occupancy/yield is not disclosed in the FS workbook — only Central GOP. Reconciliation: Hotel GOP per FS ${money(hotel)} vs P&L GOP ${d.ok?money(state.period==='YTD'?g(d.p,'sum.gop','YTD','act'):d.gop.act):'—'} (FS is after mgmt/incentive fees — see cascade).</div></div>
-      <div class="panel"><h3>Hotel vs Central GOP — stored months</h3><div class="chartbox tall"><canvas id="chConso"></canvas></div></div>
-    </div>
-    ${bridgeHtml}`;
+      <div class="panel"><h3>Hotel vs Central GOP — stored months</h3><div class="chartbox"><canvas id="chConso"></canvas></div></div>
+    </div>`;
   const ks=keys;
   mkChart('chConso',{type:'bar',data:{labels:ks.map(fmtMonthKey),datasets:[
     {label:'Hotel GOP',data:ks.map(k=>cvM(fsAll[k].hotelGop?.act,k)),backgroundColor:'#C9A227',stack:'s'},
     {label:'Central GOP',data:ks.map(k=>cvM(fsAll[k].centralGop?.act,k)),backgroundColor:'#4a7dbd',stack:'s'}]},
-    options:{scales:{x:{stacked:true},y:{stacked:true,ticks:{callback:v=>money(v,0)}}},maintainAspectRatio:false}});
+    options:{scales:{x:{stacked:true},y:{stacked:true,ticks:{callback:v=>moneyFmt(v,0)}}},maintainAspectRatio:false}});
 }
 
 /* ---------------- PATTERNS & HEATMAPS (Month × DOW, SSP vs Comp vs Industry) ---------------- */
@@ -3326,7 +3361,7 @@ function renderForecast(d){
       {label:'Forecast',data:fcl,borderColor:'#C9A227',borderDash:[6,4],tension:.3,pointRadius:3},
       {label:'Low',data:lo,borderColor:'rgba(201,162,39,.25)',pointRadius:0,fill:'+1',backgroundColor:'rgba(201,162,39,.12)'},
       {label:'High',data:hi,borderColor:'rgba(201,162,39,.25)',pointRadius:0}]},
-    options:{plugins:{legend:{labels:{filter:i=>!/Low|High/.test(i.text)}}},scales:{y:{ticks:{callback:v=>money(v,1)}}},maintainAspectRatio:false}});
+    options:{plugins:{legend:{labels:{filter:i=>!/Low|High/.test(i.text)}}},scales:{y:{ticks:{callback:v=>moneyFmt(v,1)}}},maintainAspectRatio:false}});
   /* model lab charts */
   if(occFc){
     let histN=Math.min(18,um.length);
@@ -3382,7 +3417,7 @@ function renderForecast(d){
         ...comps.map((h,i)=>({label:h,data:oM.map(m=>ota.series[h][m]?cvM(ota.series[h][m].avg,m):null),borderColor:['#9CA3AF','#6B7280','#c0a0a0','#8fa8c8'][i%4],borderWidth:1,pointRadius:0,tension:.3})),
         {label:'OTA basket avg',data:basket.map((v,i)=>v==null?null:cvM(v,oM[i])),borderColor:'#C9A227',borderWidth:2.5,tension:.3},
         {label:'STR comp-set ADR',data:strOnOta.map((v,i)=>v==null?null:cvM(v,oM[i])),borderColor:'#0B1F3A',borderDash:[5,4],borderWidth:2,tension:.3}]},
-      options:{scales:{y:{ticks:{callback:v=>money(v,1)}}},maintainAspectRatio:false}});
+      options:{scales:{y:{ticks:{callback:v=>moneyFmt(v,1)}}},maintainAspectRatio:false}});
   }
   if(rf){
     mkChart('chRf',{type:'bar',data:{labels:rf.months.map(fmtMonthKey),datasets:[
@@ -3391,14 +3426,14 @@ function renderForecast(d){
         {type:'line',label:'GOP',data:rf.rows.gop.map((v,i)=>cvM(v,rf.months[i])),borderColor:'#1e7e4f',tension:.3},
         {type:'line',label:'GOP % (right)',yAxisID:'y1',data:rf.rows.gopPct.map(v=>v==null?null:v*100),borderColor:'#c0392b',borderDash:[5,4],tension:.3}]},
       options:{plugins:{tooltip:{callbacks:{afterTitle:c=>rf.flags[c[0].dataIndex]}}},
-        scales:{y:{ticks:{callback:v=>money(v,0)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'}}},maintainAspectRatio:false}});
+        scales:{y:{ticks:{callback:v=>moneyFmt(v,0)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'}}},maintainAspectRatio:false}});
   }
   if(cf){
     mkChart('chCf',{type:'bar',data:{labels:cf.months.map(fmtMonthKey),datasets:[
         {type:'bar',label:'Cash in',data:cf.cashIn.map((v,i)=>cvM(v,cf.months[i])),backgroundColor:'rgba(30,126,79,.65)'},
         {type:'bar',label:'Cash out',data:cf.cashOut.map((v,i)=>v==null?null:-cvM(v,cf.months[i])),backgroundColor:'rgba(192,57,43,.55)'},
         {type:'line',label:'Closing balance',data:cf.closing.map((v,i)=>cvM(v,cf.months[i])),borderColor:'#0B1F3A',borderWidth:2.5,tension:.3}]},
-      options:{scales:{y:{ticks:{callback:v=>money(v,0)}}},maintainAspectRatio:false}});
+      options:{scales:{y:{ticks:{callback:v=>moneyFmt(v,0)}}},maintainAspectRatio:false}});
   }
 }
 function avgA(a){ return a.length?a.reduce((x,y)=>x+y,0)/a.length:null; }
@@ -3570,7 +3605,7 @@ function renderRevA(d){
     mkChart('chDisc',{type:'bar',data:{labels:ms.map(fmtMonthKey),datasets:[
       {label:'Discount given',data:ms.map(m=>cv(rev.fnbdisc.byMonth[m].disc)),backgroundColor:'#b7791f'},
       {type:'line',label:'Discount % of gross',yAxisID:'y1',data:ms.map(m=>{const v=rev.fnbdisc.byMonth[m];return v.net+v.disc?v.disc/(v.net+v.disc)*100:null;}),borderColor:'#0B1F3A',tension:.3}]},
-      options:{scales:{y:{ticks:{callback:v=>money(v,1)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'}}},maintainAspectRatio:false}});
+      options:{scales:{y:{ticks:{callback:v=>moneyFmt(v,1)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'}}},maintainAspectRatio:false}});
   }
   if(rev.fnbsum){
     const ms=[...new Set(Object.keys(rev.fnbsum.byMonthMeal).map(k=>k.split('|')[0]))].sort().slice(-24);
@@ -3579,7 +3614,7 @@ function renderRevA(d){
       ...meals.map((ml,i)=>({label:ml,data:ms.map(m=>rev.fnbsum.byMonthMeal[m+'|'+ml]?.cov??null),backgroundColor:['#C9A227','#2e5f9e','#0B1F3A'][i],stack:'s'})),
       {type:'line',label:'Spend / cover',yAxisID:'y1',borderColor:'#1e7e4f',tension:.3,
         data:ms.map(m=>{let c=0,r=0;for(const ml of meals){const v=rev.fnbsum.byMonthMeal[m+'|'+ml];if(v){c+=v.cov;r+=v.rev;}}return c?cv(r/c):null;})}]},
-      options:{scales:{x:{stacked:true},y:{stacked:true},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>money(v,0)}}},maintainAspectRatio:false}});
+      options:{scales:{x:{stacked:true},y:{stacked:true},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>moneyFmt(v,0)}}},maintainAspectRatio:false}});
   }
 }
 
@@ -3608,6 +3643,30 @@ function renderOffice(d){
       <td data-v="${cc.ly??''}">${money(cc.ly)}</td>
       <td data-v="${varPct(cc.act,cc.ly)??''}" class="${cls(varPct(cc.act,cc.ly))}">${pct(varPct(cc.act,cc.ly))}</td>
       <td data-v="${gg?cc.act/gg:''}">${gg?pct(cc.act/gg):na()}</td></tr>`; }).join('');
+  const top5Html=(()=>{ /* top 5 things to look at — Central Plaza */
+      const al=[];
+      const gopVar=varPct(c.act,c.bud);
+      if(gopVar!=null) al.push([gopVar<-.03?'crit':gopVar<0?'warn':'good','NOI vs budget '+pct(gopVar),`Central GOP ${money(c.act)} vs budget ${money(c.bud)}${c.ly!=null?' · vs LY '+pct(varPct(c.act,c.ly)):''}.`]);
+      if(cp){
+        if(cp.totalRev){ const rv=varPct(cp.totalRev.act,cp.totalRev.bud);
+          if(rv!=null) al.push([rv<-.03?'crit':rv<0?'warn':'good','Leasing revenue vs budget '+pct(rv),`${money(cp.totalRev.act)} vs ${money(cp.totalRev.bud)} — base rent + BOC + parking + other.`]); }
+        if(cp.totalExp&&cp.totalRev){ const ratio=cp.totalExp.act/cp.totalRev.act, ratioLY=(cp.totalExp.ly??0)/(cp.totalRev.ly||1);
+          al.push([ratio>ratioLY+.02?'warn':'info','Cost ratio '+pct(ratio),`Operating expenses ${money(cp.totalExp.act)} = ${pct(ratio)} of revenue (LY ${pct(ratioLY)}).`]); }
+        if(cp.stats.vacant?.act>0) al.push(['warn',n1(cp.stats.vacant.act,0)+' m² vacant',`Vacancy on ${n1(cp.stats.totalArea?.act,0)} m² total — chase the leasing pipeline.`]);
+        const freeRent=cp.lines.find(l=>/^Free rent/i.test(l.label)&&(l.act??0)<0);
+        if(freeRent) al.push(['info','Free rent given: '+money(Math.abs(freeRent.act)),'Rent-free incentives this month — check which tenant and the term traded for it.']);
+        const expIdx=cp.lines.findIndex(l=>l.header&&/OPERATING EXPENSES/i.test(l.label));
+        const worst=(expIdx<0?[]:cp.lines.slice(expIdx+1)).filter(l=>!l.header&&!/^TOTAL|^NET/i.test(l.label)&&l.bud>0&&l.act>l.bud*1.1&&l.act>20e6)
+          .sort((a,b)=>(b.act-b.bud)-(a.act-a.bud))[0];
+        if(worst) al.push(['warn','Cost overrun: '+worst.label,`${money(worst.act)} vs budget ${money(worst.bud)} (+${pct(varPct(worst.act,worst.bud))}).`]);
+        if(cp.stats.avgRent?.act&&cp.stats.avgRent?.ly){ const rr=varPct(cp.stats.avgRent.act,cp.stats.avgRent.ly);
+          al.push([rr<0?'warn':'good','Avg rent rate '+pct(rr)+' vs LY',`${money(cp.stats.avgRent.act)}/m² vs ${money(cp.stats.avgRent.ly)}/m² LY (budget ${money(cp.stats.avgRent.bud)}).`]); }
+      }
+      const rank={crit:0,warn:1,info:2,good:3};
+      const top=al.sort((a,b)=>rank[a[0]]-rank[b[0]]).slice(0,5);
+      return top.length?`<div class="panel"><h3>Top 5 things to look at — Central Plaza</h3>
+        ${top.map((a,i)=>`<div class="alert ${a[0]}"><div class="h">${i+1}. ${a[1]}</div><div class="d">${a[2]}</div></div>`).join('')}</div>`:'';
+    })();
   el.innerHTML=`
     <div class="kgrid">
       ${kpiCard('Central Plaza NOI — '+P,money(noiV),varPct(c[f],c[fb]),P==='MTD'?varPct(c.act,c.ly):null)}
@@ -3622,11 +3681,16 @@ function renderOffice(d){
     ${!cp?`<div class="panel" style="padding:8px 12px"><div class="small">⚠ The <b>office scorecard & cost detail</b> below (occupancy, rent/m², leased area, expense lines) come from the <b>Central Plaza P&amp;L block of the PHCL consolidated FS</b>. This month's stored FS predates that parser — re-drop the <b>“PHCL (VIET NAM) financial statements for ${String(+state.month.slice(5)).padStart(2,'0')}.${state.month.slice(0,4)}”</b> workbook in Settings &amp; Data to populate it.</div></div>`:''}
     <div class="cols c2">
       <div class="panel"><h3>Central Plaza GOP by month <span class="small">(from stored Consolidated FS)</span></h3>
-        <div class="chartbox tall"><canvas id="chOffice"></canvas></div></div>
+        <div class="chartbox"><canvas id="chOffice"></canvas></div></div>
+      ${top5Html}
+    </div>
+    <div class="cols c2">
       <div class="panel"><h3>Monthly detail</h3>
         <table><thead><tr><th>Month</th><th>GOP</th><th>Budget</th><th>vs Bud</th><th>LY</th><th>vs LY</th><th>% of consolidated</th></tr></thead>
         <tbody>${rows}</tbody></table>
-        <div class="small" style="margin-top:6px">Central GOP = NET OPERATING INCOME of the office building (office occupancy, rent/m² and cost detail are on the scorecard above and the cost analysis below, when the current FS carries the Central Plaza P&L block). Leasing matters go in the notes (they feed the BOD email draft).</div></div>
+        <div class="small" style="margin-top:6px">Central GOP = NET OPERATING INCOME of the office building. Occupancy, rent/m² and cost detail are on the scorecard above and the cost analysis below. Leasing matters go in the notes.</div></div>
+      <div class="panel"><h3>Leasing & tenant notes — ${fmtMonthKey(state.month)} <span class="small">(edit in Exec Summary tab)</span></h3>
+        <div class="small" style="white-space:pre-wrap">${notes||'— no notes for this month yet (add them in Exec Summary → "2/ Central Plaza") —'}</div></div>
     </div>
     ${(()=>{ /* cost analysis — from the "CENTRAL PLAZA - PROFIT AND LOSS STATEMENT" block of the FS */
       if(!cp) return '';   // the banner above already explains how to populate it
@@ -3655,38 +3719,13 @@ function renderOffice(d){
         <div class="small" style="margin-top:6px">${full?'Full line-by-line P&L. ':'Summary — top-level revenue categories & totals. Switch to Full detail for every line. '}${cp.totalRev&&cp.totalExp&&cp.noi?`Operating cost ratio <b>${pct(cp.totalExp.act/rev)}</b> (budget ${pct((cp.totalExp.bud??0)/(cp.totalRev.bud||1))}, LY ${pct((cp.totalExp.ly??0)/(cp.totalRev.ly||1))}) — NOI margin <b>${pct(cp.noi.act/rev)}</b>. NOI ties to the CENTRAL GOP line of the consolidated cascade.`:''}</div>
         ${keys.filter(k=>fsAll[k].centralPL).length>1?'<div class="chartbox" style="margin-top:8px"><canvas id="chCpCost"></canvas></div>':''}</div>`;
     })()}
-    ${(()=>{ /* top 5 things to look at — Central Plaza */
-      const cp=fs.centralPL; const al=[];
-      const gopVar=varPct(c.act,c.bud);
-      if(gopVar!=null) al.push([gopVar<-.03?'crit':gopVar<0?'warn':'good','NOI vs budget '+pct(gopVar),`Central GOP ${money(c.act)} vs budget ${money(c.bud)}${c.ly!=null?' · vs LY '+pct(varPct(c.act,c.ly)):''}.`]);
-      if(cp){
-        if(cp.totalRev){ const rv=varPct(cp.totalRev.act,cp.totalRev.bud);
-          if(rv!=null) al.push([rv<-.03?'crit':rv<0?'warn':'good','Leasing revenue vs budget '+pct(rv),`${money(cp.totalRev.act)} vs ${money(cp.totalRev.bud)} — base rent + BOC + parking + other.`]); }
-        if(cp.totalExp&&cp.totalRev){ const ratio=cp.totalExp.act/cp.totalRev.act, ratioLY=(cp.totalExp.ly??0)/(cp.totalRev.ly||1);
-          al.push([ratio>ratioLY+.02?'warn':'info','Cost ratio '+pct(ratio),`Operating expenses ${money(cp.totalExp.act)} = ${pct(ratio)} of revenue (LY ${pct(ratioLY)}).`]); }
-        if(cp.stats.vacant?.act>0) al.push(['warn',n1(cp.stats.vacant.act,0)+' m² vacant',`Vacancy on ${n1(cp.stats.totalArea?.act,0)} m² total — chase the leasing pipeline (potential rent gap shows in "Absorption & Turnover vacancy").`]);
-        const freeRent=cp.lines.find(l=>/^Free rent/i.test(l.label)&&(l.act??0)<0);
-        if(freeRent) al.push(['info','Free rent given: '+money(Math.abs(freeRent.act)),'Rent-free incentives this month — check which tenant and the term traded for it.']);
-        const expIdx=cp.lines.findIndex(l=>l.header&&/OPERATING EXPENSES/i.test(l.label));
-        const worst=(expIdx<0?[]:cp.lines.slice(expIdx+1)).filter(l=>!l.header&&!/^TOTAL|^NET/i.test(l.label)&&l.bud>0&&l.act>l.bud*1.1&&l.act>20e6)
-          .sort((a,b)=>(b.act-b.bud)-(a.act-a.bud))[0];
-        if(worst) al.push(['warn','Cost overrun: '+worst.label,`${money(worst.act)} vs budget ${money(worst.bud)} (+${pct(varPct(worst.act,worst.bud))}).`]);
-        if(cp.stats.avgRent?.act&&cp.stats.avgRent?.ly){ const rr=varPct(cp.stats.avgRent.act,cp.stats.avgRent.ly);
-          al.push([rr<0?'warn':'good','Avg rent rate '+pct(rr)+' vs LY',`${money(cp.stats.avgRent.act)}/m² vs ${money(cp.stats.avgRent.ly)}/m² LY (budget ${money(cp.stats.avgRent.bud)}).`]); }
-      }
-      const rank={crit:0,warn:1,info:2,good:3};
-      const top=al.sort((a,b)=>rank[a[0]]-rank[b[0]]).slice(0,5);
-      return top.length?`<div class="panel"><h3>Top 5 things to look at — Central Plaza</h3>
-        ${top.map((a,i)=>`<div class="alert ${a[0]}"><div class="h">${i+1}. ${a[1]}</div><div class="d">${a[2]}</div></div>`).join('')}</div>`:'';
-    })()}
-    <div class="panel"><h3>Leasing & tenant notes — ${fmtMonthKey(state.month)} <span class="small">(edit in Exec Summary tab)</span></h3>
-      <div class="small" style="white-space:pre-wrap">${notes||'— no notes for this month yet (add them in Exec Summary → "2/ Central Plaza") —'}</div></div>`;
+`;
   mkChart('chOffice',{type:'bar',data:{labels:keys.map(fmtMonthKey),datasets:[
       {type:'bar',label:'Central GOP',data:keys.map(k=>cvM(fsAll[k].centralGop?.act,k)),backgroundColor:'#2e5f9e'},
       {type:'bar',label:'Budget',data:keys.map(k=>cv(fsAll[k].centralGop?.bud)),backgroundColor:'rgba(201,162,39,.55)'},
       {type:'line',label:'% of consolidated GOP (right)',yAxisID:'y1',tension:.3,borderColor:'#1e7e4f',
         data:keys.map(k=>{const cc=fsAll[k].centralGop?.act,hh=fsAll[k].hotelGop?.act; return cc!=null&&hh!=null&&(cc+hh)?cc/(cc+hh)*100:null;})}]},
-    options:{scales:{y:{ticks:{callback:v=>money(v,1)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'}}},maintainAspectRatio:false}});
+    options:{scales:{y:{ticks:{callback:v=>moneyFmt(v,1)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'}}},maintainAspectRatio:false}});
   /* Central Plaza leasing revenue vs operating cost vs NOI margin across stored FS months */
   if(document.getElementById('chCpCost')){
     const ms2=keys.filter(k=>fsAll[k].centralPL);
@@ -3695,7 +3734,7 @@ function renderOffice(d){
         {type:'bar',label:'Operating expenses',data:ms2.map(k=>cvM(fsAll[k].centralPL.totalExp?.act,k)),backgroundColor:'rgba(192,57,43,.6)'},
         {type:'line',label:'NOI margin % (right)',yAxisID:'y1',tension:.3,borderColor:'#1e7e4f',
           data:ms2.map(k=>{const p2=fsAll[k].centralPL; return p2.noi?.act!=null&&p2.totalRev?.act?p2.noi.act/p2.totalRev.act*100:null;})}]},
-      options:{scales:{y:{ticks:{callback:v=>money(v,1)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'}}},maintainAspectRatio:false}});
+      options:{scales:{y:{ticks:{callback:v=>moneyFmt(v,1)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'}}},maintainAspectRatio:false}});
   }
 }
 
@@ -3924,7 +3963,7 @@ function renderAll(){
     if(el) el.innerHTML=`<div class="panel"><h3 style="color:var(--red)">⚠ This tab failed to render</h3>
       <div class="small">${e.message}</div><div class="small" style="margin-top:6px">Please screenshot this message — the other tabs are unaffected.</div></div>`; } };
   safe(renderCockpit,'cockpit'); safe(renderOffice,'office'); safe(renderRooms,'rooms'); safe(renderSeg,'seg');
-  safe(renderFnb,'fnb'); safe(renderOther,'other'); safe(renderUndist,'undist'); safe(renderMarket,'market');
+  safe(renderFnb,'fnb'); safe(renderOther,'other'); safe(renderMarket,'market');
   safe(renderBench,'bench'); safe(renderConso,'conso'); safe(renderDQ,'dq'); safe(renderForecast,'forecast');
   safe(renderHeat,'heat'); safe(renderRevA,'reva'); safe(renderEng,'eng'); safe(renderExec,'exec');
   safe(renderUsers,'users'); safe(renderSettings,'settings');
@@ -4221,7 +4260,7 @@ function buildExportWb(){
   const ws0=XLSX.utils.aoa_to_sheet(aoa); ws0['!cols']=[{wch:28},{wch:16},{wch:16},{wch:16},{wch:12},{wch:12}];
   XLSX.utils.book_append_sheet(wb,ws0,'Cockpit');
   /* every rendered table, tab by tab (exports exactly what is on screen) */
-  const tabsX=[['exec','Exec Summary'],['office','Office Building'],['forecast','Forecast'],['rooms','Rooms'],['seg','Segmentation'],['fnb','F&B'],['other','Other Ops'],['undist','Undistributed'],
+  const tabsX=[['exec','Exec Summary'],['office','Central Plaza'],['forecast','Forecast'],['rooms','Rooms'],['seg','Segmentation'],['fnb','F&B'],['other','Other Ops & Undist'],
     ['reva','Revenue Analysis'],['market','Market STR'],['heat','Patterns'],['bench','HotStats'],['conso','Consolidated'],['eng','Engineering'],['dq','Data Quality']];
   for(const [id,name] of tabsX){
     document.querySelectorAll('#tab-'+id+' table').forEach((tb,i)=>{
