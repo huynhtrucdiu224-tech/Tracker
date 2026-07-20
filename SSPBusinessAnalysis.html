@@ -58,9 +58,11 @@ section.tab{display:none}section.tab.on{display:block}
 section.tab.printshow{display:block}
 .printhead{display:none}
 /* ---------- cards / grids ---------- */
-/* flex (not grid): cards grow so every row is filled edge-to-edge — no blank areas on the last row */
-.kgrid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
-.kpi{flex:1 1 180px;min-width:150px;background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--navy);border-radius:8px;padding:9px 11px;box-shadow:0 1px 2px rgba(15,30,58,.06)}
+/* CSS grid = every card identical width. balanceKgrids() (JS) then picks a column
+   count that spreads the cards evenly across rows (e.g. 12 → 6×2, not 10+2). The
+   auto-fill default below is just the pre-balance fallback. */
+.kgrid{display:grid;gap:8px;margin-bottom:14px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.kpi{background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--navy);border-radius:8px;padding:9px 11px;box-shadow:0 1px 2px rgba(15,30,58,.06)}
 .kpi.g{border-left-color:var(--green)}.kpi.r{border-left-color:var(--red)}.kpi.a{border-left-color:var(--gold2)}
 .kpi .t{font-size:10px;color:var(--grey);text-transform:uppercase;letter-spacing:.5px}
 .kpi .v{font-size:19px;font-weight:800;margin:2px 0;color:var(--navy)}
@@ -92,8 +94,7 @@ section.tab.printshow{display:block}
   main{padding:8px 8px 48px}
   /* single-column everything, 2-up KPI cards */
   .cols.c2,.cols.c3{grid-template-columns:1fr}
-  .kgrid{gap:6px;margin-bottom:10px}
-  .kpi{flex:1 1 46%;min-width:0}
+  .kgrid{gap:6px;margin-bottom:10px}  /* balanceKgrids computes ~2 cols at phone width */
   .kpi .v{font-size:16px}
   .kpi .t{font-size:9.5px}
   .panel{padding:10px 11px;margin-bottom:10px}
@@ -4167,6 +4168,22 @@ function renderAll(){
   safe(renderBench,'bench'); safe(renderConso,'conso'); safe(renderDQ,'dq'); safe(renderForecast,'forecast');
   safe(renderHeat,'heat'); safe(renderRevA,'reva'); safe(renderEng,'eng'); safe(renderExec,'exec');
   safe(renderUsers,'users'); safe(renderSettings,'settings');
+  balanceKgrids();
+}
+
+/* Give every KPI scorecard equal-width cards spread evenly across rows: pick a column
+   count so the cards fill balanced rows (12 → 6×2, not 10 wide + 2 huge). Only visible
+   grids can be measured; hidden tabs are re-balanced when shown (tab-switch handler). */
+function balanceKgrids(){
+  $$('.kgrid').forEach(g=>{
+    const n=g.children.length; if(!n){ g.style.gridTemplateColumns=''; return; }
+    const w=g.clientWidth; if(!w) return;                 // hidden tab — balance later
+    const min=160, gap=8;
+    const fit=Math.max(1,Math.min(n,Math.floor((w+gap)/(min+gap))));  // most that fit at min width
+    const rows=Math.ceil(n/fit);                          // rows needed
+    const cols=Math.ceil(n/rows);                         // spread evenly → balanced rows
+    g.style.gridTemplateColumns=`repeat(${cols},1fr)`;
+  });
 }
 
 /* ---------- generic table sort + filter (event delegation survives re-renders) ---------- */
@@ -4509,10 +4526,13 @@ $$('#tabs button').forEach(b=>b.addEventListener('click',()=>{
   $$('#tabs button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
   $$('section.tab').forEach(s=>s.classList.remove('on')); $('#tab-'+b.dataset.tab).classList.add('on');
   $('#pageTitle').textContent=b.textContent.replace(/\d+$/,'').trim();
-  /* nudge charts on the newly visible tab — covers ResizeObserver misses (zoomed displays etc.) */
-  requestAnimationFrame(()=>{ $$('#tab-'+b.dataset.tab+' canvas').forEach(c=>{
+  balanceKgrids();   // tab is now visible & measurable — balance synchronously to avoid a fallback-layout flash
+  /* nudge charts + re-balance on the newly visible tab (couldn't be measured while hidden) */
+  requestAnimationFrame(()=>{ balanceKgrids(); $$('#tab-'+b.dataset.tab+' canvas').forEach(c=>{
     const ch=state.charts[c.id]; try{ ch?.resize(); ch?.update('none'); }catch(e){} }); });
 }));
+let _rzT=null;
+window.addEventListener('resize',()=>{ clearTimeout(_rzT); _rzT=setTimeout(balanceKgrids,150); });
 
 /* expose for automated verification */
 window.__ingestBuffer=ingestBuffer; window.__renderAll=()=>{saveStore();refreshMonths();renderAll();}; window.__state=state;

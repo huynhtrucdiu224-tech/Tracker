@@ -323,6 +323,13 @@ function hasSopPerm(p) {
   const sopConfigured = S.roleMatrix.some(r => r.module === 'sop');
   return sopConfigured ? hasPerm('sop', p) : hasPerm('memo', p);
 }
+/* Ai được vào trang Sao lưu: Admin hệ thống, hoặc ai có quyền "Quản trị" cấp
+   phân hệ (VBPL/Memo/SOP) — cùng nhóm đã được cấp quyền xóa VBPL trước đó.
+   Trang chỉ TẢI VỀ những gì RLS cho phép họ đọc (tự động scope theo quyền),
+   không phải toàn bộ dữ liệu hệ thống trừ khi là Admin. */
+function canBackup() {
+  return S.profile?.is_admin || hasPerm('legal', 'admin') || hasPerm('memo', 'admin') || hasSopPerm('admin');
+}
 
 /* ============================================================================
  * SIDEBAR + ROUTER
@@ -337,7 +344,7 @@ const ROUTES = [
   { hash: '#/admin/roles', section: 'sec_admin', label: 'nav_roles', show: () => S.profile?.is_admin, render: pageRoles },
   { hash: '#/admin/sources', section: 'sec_admin', label: 'nav_sources', show: () => hasPerm('legal', 'review'), render: pageSources },
   { hash: '#/admin/audit', section: 'sec_admin', label: 'nav_audit', show: () => S.profile?.is_admin, render: pageAudit },
-  { hash: '#/admin/backup', section: 'sec_admin', label: 'nav_backup', show: () => S.profile?.is_admin, render: pageBackup }
+  { hash: '#/admin/backup', section: 'sec_admin', label: 'nav_backup', show: () => canBackup(), render: pageBackup }
 ];
 /* Đếm số Memo/SOP đang chờ NGƯỜI DÙNG HIỆN TẠI xử lý (kiểm tra hoặc phê
    duyệt) — chỉ tính với ai có quyền review/approve tương ứng, để hiện số
@@ -2318,17 +2325,25 @@ async function pageAudit() {
 }
 
 const BACKUP_TABLES = ['org_units', 'permissions', 'role_matrix', 'profiles', 'legal_docs', 'memo_categories', 'memos', 'sops', 'sources', 'watchlist', 'ingest_queue', 'audit_log', 'app_settings'];
+/* Đọc 1 bảng cho mục đích backup — nếu RLS chặn (không có quyền đọc bảng đó)
+   thì bỏ qua trong im lặng thay vì làm hỏng cả file backup; trả về [] . */
+async function readTableForBackup(tbl) {
+  const { data, error } = await sb.from(tbl).select('*');
+  if (error) { console.warn(`backup: bỏ qua bảng ${tbl} (${error.message})`); return []; }
+  return data || [];
+}
 async function pageBackup() {
+  const isSysAdmin = S.profile?.is_admin;
   $('#page').innerHTML = pageTitle(t('backup_title')) + `
     <div class="bg-white rounded-lg shadow-sm p-5 space-y-4 max-w-xl">
-      <p class="text-xs text-slate-500">${esc(t('backup_note'))}</p>
+      <p class="text-xs text-slate-500">${esc(isSysAdmin ? t('backup_note') : t('backup_note_scoped'))}</p>
       <button class="btn btn-primary" id="bk-json">${esc(t('backup_export_json'))}</button>
       <button class="btn btn-outline" id="bk-csv">${esc(t('backup_export_csv'))}</button>
-      <div><label class="text-xs font-semibold">${esc(t('backup_import'))}</label><input type="file" id="bk-import" accept=".json"></div>
+      ${isSysAdmin ? `<div><label class="text-xs font-semibold">${esc(t('backup_import'))}</label><input type="file" id="bk-import" accept=".json"></div>` : ''}
     </div>`;
   $('#bk-json').addEventListener('click', async () => {
     const dump = {};
-    for (const tbl of BACKUP_TABLES) dump[tbl] = (await sb.from(tbl).select('*')).data || [];
+    for (const tbl of BACKUP_TABLES) dump[tbl] = await readTableForBackup(tbl);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(dump, null, 1)], { type: 'application/json' }));
     a.download = `portal_backup_${today()}.json`; a.click(); URL.revokeObjectURL(a.href);
@@ -2336,11 +2351,11 @@ async function pageBackup() {
   });
   $('#bk-csv').addEventListener('click', async () => {
     for (const tbl of BACKUP_TABLES) {
-      const rows = (await sb.from(tbl).select('*')).data || [];
+      const rows = await readTableForBackup(tbl);
       if (rows.length) downloadCsv(`${tbl}_${today()}.csv`, rows);
     }
   });
-  $('#bk-import').addEventListener('change', async e => {
+  $('#bk-import')?.addEventListener('change', async e => {
     const f = e.target.files[0]; if (!f) return;
     const dump = JSON.parse(await f.text());
     for (const tbl of BACKUP_TABLES) {
