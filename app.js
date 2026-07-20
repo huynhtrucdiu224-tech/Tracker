@@ -474,7 +474,7 @@ async function pageLegal() {
     <button class="btn btn-outline" id="btn-adddoc">${esc(t('btn_add'))}</button>
     <button class="btn btn-outline" id="btn-import">${esc(t('btn_import_csv'))}</button>` : ''}
     <button class="btn btn-outline" id="btn-export">${esc(t('btn_export_csv'))}</button>
-    ${S.profile.is_admin ? `<button class="btn btn-danger" id="btn-legal-del">${esc(t('btn_bulk_delete'))}</button>` : ''}</div>
+    ${hasPerm('legal', 'admin') || S.profile.is_admin ? `<button class="btn btn-danger" id="btn-legal-del">${esc(t('btn_bulk_delete'))}</button>` : ''}</div>
     <div id="legal-table"></div>`;
   $('#page').innerHTML = html;
 

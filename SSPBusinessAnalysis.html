@@ -3851,8 +3851,9 @@ function renderOffice(d){
         if(cp.totalExp&&cp.totalRev){ const ratio=cp.totalExp.act/cp.totalRev.act, ratioLY=(cp.totalExp.ly??0)/(cp.totalRev.ly||1);
           al.push([ratio>ratioLY+.02?'warn':'info','Cost ratio '+pct(ratio),`Operating expenses ${money(cp.totalExp.act)} = ${pct(ratio)} of revenue (LY ${pct(ratioLY)}).`]); }
         if(cst.vacant?.act>0) al.push(['warn',n1(cst.vacant.act,0)+' m² vacant',`Vacancy on ${n1(cst.totalArea?.act,0)} m² total — chase the leasing pipeline.`]);
-        const freeRent=cp.lines.find(l=>/^Free rent/i.test(l.label)&&(l.act??0)<0);
-        if(freeRent) al.push(['info','Free rent given: '+money(Math.abs(freeRent.act)),'Rent-free incentives this month — check which tenant and the term traded for it.']);
+        /* NOTE: the "Free rent" P&L line is NOT a tenant incentive — it is in-house
+           use of the JV office space. No insight card is raised for it (it would be
+           misread as a commercial giveaway). It still sits in the P&L detail table. */
         const expIdx=cp.lines.findIndex(l=>l.header&&/OPERATING EXPENSES/i.test(l.label));
         const worst=(expIdx<0?[]:cp.lines.slice(expIdx+1)).filter(l=>!l.header&&!/^TOTAL|^NET/i.test(l.label)&&l.bud>0&&l.act>l.bud*1.1&&l.act>20e6)
           .sort((a,b)=>(b.act-b.bud)-(a.act-a.bud))[0];
