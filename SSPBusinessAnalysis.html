@@ -1484,6 +1484,21 @@ async function parseEngPdf(buf){
   if(wi>=0) for(let i=wi;i<wi+4&&i<lines.length;i++){
     const m=lines[i].match(/^(\d{1,4})\s+(\d{1,4})\s+(\d{1,4})$/);
     if(m){ wo={total:+m[1],done:+m[2],open:+m[3]}; break; }
+    /* older reports sometimes have multi-digit counts split into lone-digit glyphs by
+       a PDF kerning quirk (e.g. "3 3 2 6 7" meaning total 33, done 26, open 7 — BOTH
+       the total and the done count got split). If the row is purely space-separated
+       digits, try every way to cut the token run into 3 contiguous groups (total /
+       done / open) and keep whichever cut satisfies done+open=total. */
+    if(/^\d+(?:\s+\d+){2,}$/.test(lines[i])){
+      const toks=lines[i].split(/\s+/);
+      outer: for(let a=1;a<toks.length-1;a++){
+        for(let b=a+1;b<toks.length;b++){
+          const total=+toks.slice(0,a).join(''), doneV=+toks.slice(a,b).join(''), openV=+toks.slice(b).join('');
+          if(doneV+openV===total){ wo={total,done:doneV,open:openV}; break outer; }
+        }
+      }
+      if(wo) break;
+    }
   }
   /* hot-spots: mentions by floor/location and by system keyword */
   const locRe=/\b(B[12]|\d{1,2}\s?F|Roof|Lobby|Club|Bistro|Mezz|Banquet|Pool|Spa|Kitchen)\b/gi;
@@ -3507,6 +3522,7 @@ function renderForecast(d){
 function avgA(a){ return a.length?a.reduce((x,y)=>x+y,0)/a.length:null; }
 
 /* ---------------- ENGINEERING (building condition & maintenance) ---------------- */
+window.__setEngGran=v=>{ state.engGran=v; renderEng(derive()); };
 function renderEng(d){
   const el=$('#tab-eng');
   const monthsE=Object.keys(state.store.months).filter(k=>state.store.months[k].eng).sort();
@@ -3527,21 +3543,34 @@ function renderEng(d){
   const crit=(eng.critical||[]).map(c=>`<div class="alert warn"><div class="d">${c}</div></div>`).join('')||'<div class="small">No critical-keyword lines detected.</div>';
   const insight= topSys.length? `<div class="alert ${topSys[0][1]>15?'crit':'info'}"><div class="h">Most stressed system: ${topSys[0][0]} (${topSys[0][1]} mentions)</div>
     <div class="d">Top location: <b>${topLocs[0]?.[0]??'—'}</b> (${topLocs[0]?.[1]??0} mentions). Recurring mentions of the same floor/system month after month = ageing asset — cross-check against the renovation scope and FF&E reserve before approving one-off repairs.</div></div>`:'';
+  /* Work-order trend: focus period (shared with Market/Patterns/Forecast/Central
+     Plaza) + Monthly/Quarterly/Yearly grouping. No Daily/Weekly here — Engineering
+     data is one PDF per month, there is no sub-month resolution to show. */
+  const gran=state.engGran||'monthly';
+  const monthsF=(state.tsFrom||state.tsTo)?monthsE.filter(tsInRange):monthsE;
+  const trendCtl=`<span class="noprint" style="float:right">${tsRangeSel()} &nbsp;
+      ${[['monthly','Monthly'],['quarterly','Quarterly'],['yearly','Yearly']].map(([k,l])=>`<button class="heatbtn ${gran===k?'on':''}" onclick="__setEngGran('${k}')">${l}</button>`).join(' ')}</span>`;
+  const groupKey=m=>gran==='yearly'?m.slice(0,4):gran==='quarterly'?m.slice(0,4)+'-Q'+Math.ceil(+m.slice(5,7)/3):m;
+  const groups={};
+  for(const m of monthsF){ const gk=groupKey(m); (groups[gk]=groups[gk]||[]).push(m); }
+  const gks=Object.keys(groups).sort();
+  const sumOf=(gk,f)=>{ const ms=groups[gk]; const vs=ms.map(m=>f(state.store.months[m].eng)).filter(v=>v!=null); return vs.length?vs.reduce((a,b)=>a+b,0):null; };
+  const gLabel=gk=>gran==='yearly'?gk:gran==='quarterly'?gk.replace('-',' '):fmtMonthKey(gk);
   el.innerHTML=`
     <div class="kgrid">${kpis}</div>
     ${insight}
     <div class="cols c3">
-      <div class="panel"><h3>Work-order trend</h3><div class="chartbox"><canvas id="chEngWo"></canvas></div></div>
+      <div class="panel"><h3>Work-order trend ${trendCtl}</h3><div class="chartbox"><canvas id="chEngWo"></canvas></div></div>
       <div class="panel"><h3>Mentions by system — ${fmtMonthKey(key)}</h3><div class="chartbox"><canvas id="chEngSys"></canvas></div></div>
       <div class="panel"><h3>Mentions by location <input class="tblflt noprint" placeholder="${t('filter')}"></h3>
         <table><thead><tr><th>Location</th><th>Mentions</th></tr></thead><tbody>${locRows}</tbody></table>
         <div class="small" style="margin-top:4px">Counted from the report text — a proxy for where Engineering effort is going, not a defect count.</div></div>
     </div>
     <div class="panel"><h3>Critical watchlist — lines flagged by keyword (leak / broken / fail / damage / clog…)</h3>${crit}</div>`;
-  mkChart('chEngWo',{type:'bar',data:{labels:monthsE.map(fmtMonthKey),datasets:[
-      {type:'bar',label:'Requested',data:monthsE.map(m=>state.store.months[m].eng.wo?.total??null),backgroundColor:'#0B1F3A'},
-      {type:'bar',label:'Completed',data:monthsE.map(m=>state.store.months[m].eng.wo?.done??null),backgroundColor:'#C9A227'},
-      {type:'line',label:'Logged items (right)',yAxisID:'y1',data:monthsE.map(m=>state.store.months[m].eng.items??null),borderColor:'#1e7e4f',tension:.3}]},
+  mkChart('chEngWo',{type:'bar',data:{labels:gks.map(gLabel),datasets:[
+      {type:'bar',label:'Requested',data:gks.map(gk=>sumOf(gk,e=>e.wo?.total)),backgroundColor:'#0B1F3A'},
+      {type:'bar',label:'Completed',data:gks.map(gk=>sumOf(gk,e=>e.wo?.done)),backgroundColor:'#C9A227'},
+      {type:'line',label:'Logged items (right)',yAxisID:'y1',data:gks.map(gk=>sumOf(gk,e=>e.items)),borderColor:'#1e7e4f',tension:.3}]},
     options:{scales:{
         y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:'Work orders'}},
         y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{precision:0},title:{display:true,text:'Logged items'}}},
