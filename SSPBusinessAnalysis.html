@@ -3727,7 +3727,15 @@ function renderOffice(d){
   const grp=(c[f]??0)+(h[f]??0);
   const notes=(state.store.execNotes?.[state.month]?.cp)||'';
   const keys=Object.keys(fsAll).sort();
-  const cp=fs.centralPL, cst=cp?.stats||{};
+  const cp=fs.centralPL;
+  /* Some already-stored months were parsed by an earlier version of this code that
+     saved these particular stats (area/occupancy) as a plain number rather than the
+     current {act,bud,ly,ytd} object (avgRent was always the full object, which is why
+     it kept working while occupancy/leased/total/public area showed N/A). Normalise
+     on read so previously-ingested data self-heals without re-dropping the FS file. */
+  const asStat=s=>s==null?null:(typeof s==='object'?s:{act:s,bud:null,ly:null,ytd:null});
+  const cstRaw=cp?.stats||{};
+  const cst={}; for(const k2 of Object.keys(cstRaw)) cst[k2]=asStat(cstRaw[k2]);
   const pick=o=>o?(P==='YTD'?o.ytd:o.act):null;                 // MTD/YTD aware
   const noiV=cp?.noi?pick(cp.noi):c[f], revV=pick(cp?.totalRev), expV=pick(cp?.totalExp);
   /* simple KPI card with a free-text subtitle (for the area metrics) */
@@ -3749,15 +3757,15 @@ function renderOffice(d){
           if(rv!=null) al.push([rv<-.03?'crit':rv<0?'warn':'good','Leasing revenue vs budget '+pct(rv),`${money(cp.totalRev.act)} vs ${money(cp.totalRev.bud)} — base rent + BOC + parking + other.`]); }
         if(cp.totalExp&&cp.totalRev){ const ratio=cp.totalExp.act/cp.totalRev.act, ratioLY=(cp.totalExp.ly??0)/(cp.totalRev.ly||1);
           al.push([ratio>ratioLY+.02?'warn':'info','Cost ratio '+pct(ratio),`Operating expenses ${money(cp.totalExp.act)} = ${pct(ratio)} of revenue (LY ${pct(ratioLY)}).`]); }
-        if(cp.stats.vacant?.act>0) al.push(['warn',n1(cp.stats.vacant.act,0)+' m² vacant',`Vacancy on ${n1(cp.stats.totalArea?.act,0)} m² total — chase the leasing pipeline.`]);
+        if(cst.vacant?.act>0) al.push(['warn',n1(cst.vacant.act,0)+' m² vacant',`Vacancy on ${n1(cst.totalArea?.act,0)} m² total — chase the leasing pipeline.`]);
         const freeRent=cp.lines.find(l=>/^Free rent/i.test(l.label)&&(l.act??0)<0);
         if(freeRent) al.push(['info','Free rent given: '+money(Math.abs(freeRent.act)),'Rent-free incentives this month — check which tenant and the term traded for it.']);
         const expIdx=cp.lines.findIndex(l=>l.header&&/OPERATING EXPENSES/i.test(l.label));
         const worst=(expIdx<0?[]:cp.lines.slice(expIdx+1)).filter(l=>!l.header&&!/^TOTAL|^NET/i.test(l.label)&&l.bud>0&&l.act>l.bud*1.1&&l.act>20e6)
           .sort((a,b)=>(b.act-b.bud)-(a.act-a.bud))[0];
         if(worst) al.push(['warn','Cost overrun: '+worst.label,`${money(worst.act)} vs budget ${money(worst.bud)} (+${pct(varPct(worst.act,worst.bud))}).`]);
-        if(cp.stats.avgRent?.act&&cp.stats.avgRent?.ly){ const rr=varPct(cp.stats.avgRent.act,cp.stats.avgRent.ly);
-          al.push([rr<0?'warn':'good','Avg rent rate '+pct(rr)+' vs LY',`${money(cp.stats.avgRent.act)}/m² vs ${money(cp.stats.avgRent.ly)}/m² LY (budget ${money(cp.stats.avgRent.bud)}).`]); }
+        if(cst.avgRent?.act&&cst.avgRent?.ly){ const rr=varPct(cst.avgRent.act,cst.avgRent.ly);
+          al.push([rr<0?'warn':'good','Avg rent rate '+pct(rr)+' vs LY',`${money(cst.avgRent.act)}/m² vs ${money(cst.avgRent.ly)}/m² LY (budget ${money(cst.avgRent.bud)}).`]); }
       }
       const rank={crit:0,warn:1,info:2,good:3};
       const top=al.sort((a,b)=>rank[a[0]]-rank[b[0]]).slice(0,5);
@@ -3782,7 +3790,7 @@ function renderOffice(d){
           <td data-v="${l.ly??''}">${money(l.ly)}</td>
           <td class="${cls(varPct(l.act,l.ly))}">${pct(varPct(l.act,l.ly))}</td>
           <td data-v="${l.ytd??''}">${money(l.ytd)}</td></tr>`; }).join('');
-      const st2=cp.stats;
+      const st2=cst;
       return `<div class="panel"><h3>Cost analysis — Central Plaza P&L <span class="small">(from the PHCL consolidated FS)</span>
         <span class="noprint" style="float:right">
           <button class="heatbtn ${full?'':'on'}" onclick="__setCpDetail(false)">Summary</button>
