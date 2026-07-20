@@ -290,6 +290,11 @@ const CLOUD = {
   rowId:   'ssp',       // one shared row for this hotel
 };
 
+/* Feature switches — flip to true to bring a section back.
+   Upgrade & upsell analysis (Revenue Analysis tab) is hidden while the
+   Booked-vs-Stayed / Nor1 source data is being reviewed. */
+const SHOW_UPGRADE_ANALYSIS = false;
+
 /* ---------------------------------------------------------------
  * MAP — every label regex used by the parsers. EDIT HERE ONLY.
  * --------------------------------------------------------------- */
@@ -2058,7 +2063,8 @@ function renderCockpit(d){
       <div class="panel"><h3>${t('bridge')} — ${state.period}</h3><div class="chartbox tall"><canvas id="chWaterfall"></canvas></div></div>
       <div class="panel"><h3>${t('top5')}</h3>${top5}</div>
     </div>
-    <div class="panel"><h3>${t('trend')}</h3><div class="chartbox"><canvas id="chTrend"></canvas></div></div>`;
+    <div class="panel"><h3>${t('trend')} ${granCtl()}</h3><div class="chartbox" style="margin-top:14px"><canvas id="chTrend"></canvas></div>
+      ${granNote('revenue and GOP are summed within each quarter')}</div>`;
 
   /* waterfall */
   const br=gopBridge(d);
@@ -2075,10 +2081,11 @@ function renderCockpit(d){
   const keys=Object.keys(state.store.months).sort();
   const rev=keys.map(k=>g(state.store.months[k].pnlVND,'rev.totalIncl','MTD','act'));
   const gop=keys.map(k=>g(state.store.months[k].pnlVND,'sum.gop','MTD','act'));
+  const gT=granGroup(keys,[{data:rev,agg:'sum'},{data:gop,agg:'sum'}]);
   mkChart('chTrend',{type:'bar',
-    data:{labels:keys.map(fmtMonthKey),datasets:[
-      {type:'bar',label:'Revenue',data:rev.map(cv),backgroundColor:'rgba(74,125,189,.7)'},
-      {type:'line',label:'GOP',data:gop.map(cv),borderColor:'#C9A227',backgroundColor:'#C9A227',tension:.3,yAxisID:'y'}]},
+    data:{labels:gT.labels,datasets:[
+      {type:'bar',label:'Revenue',data:gT.out[0].map(cv),backgroundColor:'rgba(74,125,189,.7)'},
+      {type:'line',label:'GOP',data:gT.out[1].map(cv),borderColor:'#C9A227',backgroundColor:'#C9A227',tension:.3,yAxisID:'y'}]},
     options:{scales:{y:{ticks:{callback:v=>moneyFmt(v,0)}}},maintainAspectRatio:false}});
 }
 
@@ -2247,7 +2254,9 @@ function renderRooms(d){
         <table><thead><tr><th>Metric</th><th>Actual</th><th>Budget</th><th>LY</th><th>Comp set</th></tr></thead><tbody>${rows}</tbody></table>
       </div>
       <div>
-        <div class="panel"><h3>RevPAR vs comp set — 18-month STR history</h3><div class="chartbox tall"><canvas id="chRoomsTrend"></canvas></div></div>
+        <div class="panel"><h3>RevPAR vs comp set — STR history ${granCtl()}</h3>
+          <div class="chartbox tall" style="margin-top:14px"><canvas id="chRoomsTrend"></canvas></div>
+          ${granNote('RevPAR and RGI are averaged across the months of each quarter')}</div>
         <div class="panel"><h3>Top 6 revenue segments — ${P} <span class="small">(full detail in Segmentation tab)</span></h3>
           <table><thead><tr><th>Sub-segment</th><th>RN</th><th>Revenue</th><th>ARR</th><th>ARR %LY</th></tr></thead>
           <tbody>${topSeg||'<tr><td colspan=5>'+na('Tracking Segmentation sheet not parsed')+'</td></tr>'}</tbody></table></div>
@@ -2258,11 +2267,14 @@ function renderRooms(d){
       <div style="overflow-x:auto"><table><thead><tr><th>Cost line</th><th>Actual</th><th>% Rooms rev</th><th>Budget</th><th>LY</th><th>vs Bud %</th><th>vs LY %</th></tr></thead>
       <tbody>${expRows||'<tr><td colspan=7>'+na('Expense detail rows not found on Rooms sheet')+'</td></tr>'}</tbody></table></div></div>`;
   const ch=curMonth().star?.comp?.revpar;
-  if(ch) mkChart('chRoomsTrend',{type:'line',data:{labels:ch.months.map(fmtMonthKey),datasets:[
-      {label:'My RevPAR',data:ch.my.map(cv),borderColor:'#C9A227',tension:.3},
-      {label:'Comp set',data:ch.comp.map(cv),borderColor:'#4a7dbd',tension:.3},
-      {label:'RGI (right)',data:ch.idx,borderColor:'#2f9e6e',borderDash:[4,3],yAxisID:'y1',tension:.3}]},
+  if(ch){
+    const gR=granGroup(ch.months,[{data:ch.my.map(cv),agg:'avg'},{data:ch.comp.map(cv),agg:'avg'},{data:ch.idx,agg:'avg'}]);
+    mkChart('chRoomsTrend',{type:'line',data:{labels:gR.labels,datasets:[
+      {label:'My RevPAR',data:gR.out[0],borderColor:'#C9A227',tension:.3},
+      {label:'Comp set',data:gR.out[1],borderColor:'#4a7dbd',tension:.3},
+      {label:'RGI (right)',data:gR.out[2],borderColor:'#2f9e6e',borderDash:[4,3],yAxisID:'y1',tension:.3}]},
     options:{scales:{y:{ticks:{callback:v=>moneyFmt(v,1)}},y1:{position:'right',grid:{drawOnChartArea:false}}},maintainAspectRatio:false}});
+  }
 }
 
 /* ---------------- SEGMENTATION ---------------- */
@@ -2496,7 +2508,6 @@ function undistHtml(d){
       ${kpiCard('Energy / occupied room',money(d.energyPOR.act),null,d.energyPOR.ly?d.energyPOR.act/d.energyPOR.ly-1:null,true)}
       ${kpiCard('Total payroll % rev',pct(d.payrollPct.act),null,d.payrollPct.ly?(d.payrollPct.act-d.payrollPct.ly):null,true)}
       ${kpiCard('Headcount / available room',n1(hpar,3),null,null)}
-      ${kpiCard('House Laundry + Canteen',(()=>{const hl=(p.otherDepts||[]).find(x=>0); return na('Allocated cost centres — see P&L sheets House Laundry / Staff Canteen');})(),null,null)}
     </div>
     <div class="panel"><h3>Is marketing buying share?</h3><div class="small">${marketing}</div></div>`;
 }
@@ -2726,7 +2737,9 @@ function renderMarket(d){
       <div class="panel"><h3>RevPAR positioning matrix — ARI vs MPI (trail = last 12 months · gold = ${fmtMonthKey(st.monthKey)} · red ring = ${fmtMonthKey(lyKey)})</h3><div class="chartbox tall"><canvas id="chQuad"></canvas></div></div>
     </div>
     <div class="cols c2">
-      <div class="panel"><h3>Index trend — 18 months</h3><div class="chartbox"><canvas id="chIdxTrend"></canvas></div></div>
+      <div class="panel"><h3>Index trend ${granCtl()}</h3>
+        <div class="chartbox" style="margin-top:14px"><canvas id="chIdxTrend"></canvas></div>
+        ${granNote('MPI / ARI / RGI are averaged across the months of each quarter')}</div>
       <div class="panel"><h3>Day-of-week pattern (current month)</h3>
         <table><thead><tr><th>Day</th><th>My Occ</th><th>Comp Occ</th><th>MPI</th><th>My ADR</th><th>Comp ADR</th></tr></thead><tbody>${dow||'<tr><td colspan=6>'+na('Day of Week sheet missing')+'</td></tr>'}</tbody></table></div>
     </div>
@@ -2801,10 +2814,11 @@ function renderMarket(d){
         ctx.fillText('Losing on both',x.getPixelForValue(81),y.getPixelForValue(72)); ctx.restore(); }}]});
   }
   const cr=st.comp?.revpar;
-  if(cr) mkChart('chIdxTrend',{type:'line',data:{labels:cr.months.map(fmtMonthKey),datasets:[
-      {label:'MPI',data:st.comp.occ?.idx,borderColor:'#4a7dbd',tension:.3},
-      {label:'ARI',data:st.comp.adr?.idx,borderColor:'#d69e2e',tension:.3},
-      {label:'RGI',data:cr.idx,borderColor:'#C9A227',borderWidth:2.5,tension:.3}]},
+  const gI=cr?granGroup(cr.months,[{data:st.comp.occ?.idx||[],agg:'avg'},{data:st.comp.adr?.idx||[],agg:'avg'},{data:cr.idx,agg:'avg'}]):null;
+  if(cr) mkChart('chIdxTrend',{type:'line',data:{labels:gI.labels,datasets:[
+      {label:'MPI',data:gI.out[0],borderColor:'#4a7dbd',tension:.3},
+      {label:'ARI',data:gI.out[1],borderColor:'#d69e2e',tension:.3},
+      {label:'RGI',data:gI.out[2],borderColor:'#C9A227',borderWidth:2.5,tension:.3}]},
     options:{plugins:{},scales:{y:{suggestedMin:70,suggestedMax:120}},maintainAspectRatio:false},
     plugins:[{id:'l100',afterDraw(ch){const{ctx,scales:{y}}=ch;ctx.save();ctx.strokeStyle='rgba(214,69,69,.6)';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(ch.chartArea.left,y.getPixelForValue(100));ctx.lineTo(ch.chartArea.right,y.getPixelForValue(100));ctx.stroke();ctx.restore();}}]});
 }
@@ -2875,24 +2889,30 @@ function renderBench(d){
     <div style="overflow-x:auto"><table><thead><tr><th>Line</th><th>You</th><th>Comp</th><th>Index</th><th>You LY</th><th>Comp LY</th><th>Verdict</th><th>Basis</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="small" style="margin-top:8px">${leak}</div></div>
     <div class="cols c2">
-      <div class="panel"><h3>Efficiency trend vs comp set — ${selLine[2]} ${selHtml}</h3>
-        <div class="chartbox tall"><canvas id="chBenchTrend"></canvas></div>
-        <div class="small" style="margin-top:6px">${verdict}</div></div>
-      <div class="panel"><h3>Index trend — key efficiency lines (${per.toUpperCase()})</h3>
-        <div class="chartbox tall"><canvas id="chBenchIdx"></canvas></div>
+      <div class="panel"><h3>Efficiency trend vs comp set — ${selLine[2]} ${selHtml} ${granCtl()}</h3>
+        <div class="chartbox tall" style="margin-top:14px"><canvas id="chBenchTrend"></canvas></div>
+        <div class="small" style="margin-top:6px">${verdict}</div>
+        ${granNote('You / Comp / Index are averaged across the months of each quarter')}</div>
+      <div class="panel"><h3>Index trend — key efficiency lines (${per.toUpperCase()}) ${granCtl()}</h3>
+        <div class="chartbox tall" style="margin-top:14px"><canvas id="chBenchIdx"></canvas></div>
         <div class="small" style="margin-top:6px">GOP %, total payroll % and F&B cost % indexes vs comp set. All lines: &gt;100 = better than comp; a line sliding below 100 is where the leakage grows.</div></div>
     </div>`;
 
   const fmtTick=v=>/%/.test(tBasis)?n1(v)+'%':(/PAR|POR/.test(tBasis)?money(v,1):n1(v));
-  mkChart('chBenchTrend',{type:'bar',data:{labels:monthsH.map(fmtMonthKey),datasets:[
-      {type:'bar',label:'You',data:tSeries.map(x=>x.you??null),backgroundColor:'#0B1F3A'},
-      {type:'bar',label:'Comp set',data:tSeries.map(x=>x.comp??null),backgroundColor:'#C9A227'},
-      {type:'line',label:'Index (right)',yAxisID:'y1',data:tSeries.map(x=>x.idx??null),borderColor:'#1e7e4f',borderDash:[5,4],tension:.3}]},
+  const gB=granGroup(monthsH,[{data:tSeries.map(x=>x.you??null),agg:'avg'},
+                              {data:tSeries.map(x=>x.comp??null),agg:'avg'},
+                              {data:tSeries.map(x=>x.idx??null),agg:'avg'}]);
+  mkChart('chBenchTrend',{type:'bar',data:{labels:gB.labels,datasets:[
+      {type:'bar',label:'You',data:gB.out[0],backgroundColor:'#0B1F3A'},
+      {type:'bar',label:'Comp set',data:gB.out[1],backgroundColor:'#C9A227'},
+      {type:'line',label:'Index (right)',yAxisID:'y1',data:gB.out[2],borderColor:'#1e7e4f',borderDash:[5,4],tension:.3}]},
     options:{scales:{y:{ticks:{callback:fmtTick}},y1:{position:'right',grid:{drawOnChartArea:false}}},maintainAspectRatio:false},
     plugins:[{id:'b100',afterDraw(ch){const y1=ch.scales.y1;if(!y1)return;const{ctx}=ch;ctx.save();ctx.strokeStyle='rgba(192,57,43,.5)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(ch.chartArea.left,y1.getPixelForValue(100));ctx.lineTo(ch.chartArea.right,y1.getPixelForValue(100));ctx.stroke();ctx.restore();}}]});
   const idxKeys=[['gop','GOP %','#C9A227'],['payroll','Payroll %','#2e5f9e'],['fbCos','F&B cost %','#1e7e4f'],['revpar','RevPAR','#0B1F3A']];
-  mkChart('chBenchIdx',{type:'line',data:{labels:monthsH.map(fmtMonthKey),datasets:idxKeys.map(([k,l,c])=>(
-      {label:l,data:monthsH.map(m=>state.store.months[m].hotstats.rows[k]?.[per]?.ty?.idx??null),borderColor:c,tension:.3}))},
+  const gBI=granGroup(monthsH,idxKeys.map(([k])=>(
+    {data:monthsH.map(m=>state.store.months[m].hotstats.rows[k]?.[per]?.ty?.idx??null),agg:'avg'})));
+  mkChart('chBenchIdx',{type:'line',data:{labels:gBI.labels,datasets:idxKeys.map(([k,l,c],i)=>(
+      {label:l,data:gBI.out[i],borderColor:c,tension:.3}))},
     options:{scales:{y:{suggestedMin:70,suggestedMax:130}},maintainAspectRatio:false},
     plugins:[{id:'b100b',afterDraw(ch){const{ctx,scales:{y}}=ch;ctx.save();ctx.strokeStyle='rgba(192,57,43,.5)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(ch.chartArea.left,y.getPixelForValue(100));ctx.lineTo(ch.chartArea.right,y.getPixelForValue(100));ctx.stroke();ctx.restore();}}]});
 }
@@ -2971,12 +2991,16 @@ function renderConso(d){
       <div class="panel"><h3>Consolidated cascade — ${P}</h3>
         <table><thead><tr><th>Line</th><th>Actual</th><th>Budget</th><th>LY</th><th>Var %</th></tr></thead><tbody>${rows}</tbody></table>
         <div class="small" style="margin-top:6px">Office-building occupancy/yield is not disclosed in the FS workbook — only Central GOP. Reconciliation: Hotel GOP per FS ${money(hotel)} vs P&L GOP ${d.ok?money(state.period==='YTD'?g(d.p,'sum.gop','YTD','act'):d.gop.act):'—'} (FS is after mgmt/incentive fees — see cascade).</div></div>
-      <div class="panel"><h3>Hotel vs Central GOP — stored months</h3><div class="chartbox"><canvas id="chConso"></canvas></div></div>
+      <div class="panel"><h3>Hotel vs Central GOP — stored months ${granCtl()}</h3>
+        <div class="chartbox" style="margin-top:14px"><canvas id="chConso"></canvas></div>
+        ${granNote('GOP is summed within each quarter')}</div>
     </div>`;
   const ks=keys;
-  mkChart('chConso',{type:'bar',data:{labels:ks.map(fmtMonthKey),datasets:[
-    {label:'Hotel GOP',data:ks.map(k=>cvM(fsAll[k].hotelGop?.act,k)),backgroundColor:'#C9A227',stack:'s'},
-    {label:'Central GOP',data:ks.map(k=>cvM(fsAll[k].centralGop?.act,k)),backgroundColor:'#4a7dbd',stack:'s'}]},
+  const gC=granGroup(ks,[{data:ks.map(k=>cvM(fsAll[k].hotelGop?.act,k)),agg:'sum'},
+                         {data:ks.map(k=>cvM(fsAll[k].centralGop?.act,k)),agg:'sum'}]);
+  mkChart('chConso',{type:'bar',data:{labels:gC.labels,datasets:[
+    {label:'Hotel GOP',data:gC.out[0],backgroundColor:'#C9A227',stack:'s'},
+    {label:'Central GOP',data:gC.out[1],backgroundColor:'#4a7dbd',stack:'s'}]},
     options:{scales:{x:{stacked:true},y:{stacked:true,ticks:{callback:v=>moneyFmt(v,0)}}},maintainAspectRatio:false}});
 }
 
@@ -3011,6 +3035,41 @@ function tsRangeSel(){ // From/To month selects, options = every month in the me
     <option value="">${ph}</option>${opts.map(m2=>`<option value="${m2}" ${m2===cur?'selected':''}>${fmtMonthKey(m2)}</option>`).join('')}</select>`;
   return `<span class="small">Focus:</span> ${sel('f',state.tsFrom,'start')} → ${sel('t',state.tsTo,'end')}`;
 }
+
+/* =====================================================================
+ *  SHARED TREND CONTROLS — Monthly/Quarterly + focus period.
+ *  One global state.gran drives every month-series chart so they all
+ *  move together. Put `${granCtl()}` in a panel <h3> to expose it, and
+ *  run the month keys + parallel data through granGroup().
+ * ===================================================================== */
+window.__setGran=v=>{ state.gran=v; renderAll(); };
+function granCtl(){
+  const g2=state.gran||'monthly';
+  return `<span class="noprint" style="float:right;font-weight:400">${tsRangeSel()} &nbsp;
+    ${[['monthly','Monthly'],['quarterly','Quarterly']].map(([k,l])=>
+      `<button class="heatbtn ${g2===k?'on':''}" onclick="__setGran('${k}')">${l}</button>`).join(' ')}</span>`;
+}
+function granKeyOf(mk){ return (state.gran||'monthly')==='quarterly'
+  ? mk.slice(0,4)+'-Q'+Math.ceil(+mk.slice(5,7)/3) : mk; }
+function granLabel(k){ return /-Q\d$/.test(k)? k.replace('-',' ') : fmtMonthKey(k); }
+/* months: array of 'YYYY-MM' (nulls tolerated) — series: [{data:[…], agg:'sum'|'avg'}]
+   Returns {labels, keys, out:[…aggregated arrays…]} after focus-filter + grouping.
+   agg:'sum' for money/volumes, 'avg' for rates, indexes, ADR/RevPAR/Occ. */
+function granGroup(months,series){
+  const idx=months.map((m,i)=>i).filter(i=>months[i]&&(!(state.tsFrom||state.tsTo)||tsInRange(months[i])));
+  const keys=[],buckets={};
+  for(const i of idx){ const k=granKeyOf(months[i]); if(!buckets[k]){buckets[k]=[];keys.push(k);} buckets[k].push(i); }
+  const out=series.map(s=>keys.map(k=>{
+    const vs=buckets[k].map(i=>s.data[i]).filter(v=>v!=null&&isFinite(v));
+    if(!vs.length) return null;
+    const sum=vs.reduce((a,b)=>a+b,0);
+    return s.agg==='sum'? sum : sum/vs.length;
+  }));
+  return {labels:keys.map(granLabel),keys,out};
+}
+/* note shown under grouped charts so the aggregation is never ambiguous */
+function granNote(what){ return (state.gran||'monthly')==='quarterly'
+  ? `<div class="small" style="margin-top:6px">Quarterly view: ${what}. Partial quarters use the months stored so far.</div>` : ''; }
 /* Build the trend series for the explorer chart.
    Daily/weekly aggregate the STAR daily grids; monthly/yearly use the merged 18-month
    Comp-sheet histories (longer range, official monthly numbers).
@@ -3137,13 +3196,24 @@ function renderHeat(d){
     }
   }
   const grid=(e,label)=>{
-    const rows=months.filter(mk=>grids[e][mk]);
-    if(!rows.length) return `<div class="panel"><h3>${label}</h3><div class="small">${na('Requires STAR "Daily by Month'+(e==='ind'?' Industry':'')+'" sheet — drop more Monthly STAR files')}</div></div>`;
-    const vals=rows.flatMap(mk=>grids[e][mk].slice(0,7)).filter(v=>v!=null);
+    const mrows=months.filter(mk=>grids[e][mk]);
+    if(!mrows.length) return `<div class="panel"><h3>${label}</h3><div class="small">${na('Requires STAR "Daily by Month'+(e==='ind'?' Industry':'')+'" sheet — drop more Monthly STAR files')}</div></div>`;
+    /* group month rows into the active granularity (quarterly = average the DOW cells) */
+    const bucket=[],seen={};
+    for(const mk of mrows){ const gk=granKeyOf(mk);
+      if(!seen[gk]){ seen[gk]={key:gk,mks:[]}; bucket.push(seen[gk]); } seen[gk].mks.push(mk); }
+    const rows=bucket.map(b=>{
+      const cells=[...Array(8)].map((_,i)=>{
+        const vs=b.mks.map(mk=>grids[e][mk][i]).filter(v=>v!=null);
+        return vs.length?vs.reduce((x,y)=>x+y,0)/vs.length:null; });
+      return {key:b.key,repMk:b.mks[b.mks.length-1],cells};
+    });
+    const vals=rows.flatMap(r=>r.cells.slice(0,7)).filter(v=>v!=null);
     const mn=Math.min(...vals),mx=Math.max(...vals);
-    let h=`<div class="panel"><h3>${label}</h3><div style="overflow-x:auto"><table class="heat"><thead><tr><th>Month</th>${DOWS.map(x=>'<th>'+x+'</th>').join('')}<th>Total</th></tr></thead><tbody>`;
-    for(const mk of rows){ const r=grids[e][mk];
-      h+=`<tr><td>${fmtMonthKey(mk)}</td>${r.slice(0,7).map(v=>`<td style="${heatColor(v,mn,mx,e==='idx')}" data-v="${v??''}">${fmtV(v,mk,e)}</td>`).join('')}<td data-v="${r[7]??''}"><b>${fmtV(r[7],mk,e)}</b></td></tr>`; }
+    const colHdr=(state.gran||'monthly')==='quarterly'?'Quarter':'Month';
+    let h=`<div class="panel"><h3>${label}</h3><div style="overflow-x:auto"><table class="heat"><thead><tr><th>${colHdr}</th>${DOWS.map(x=>'<th>'+x+'</th>').join('')}<th>Total</th></tr></thead><tbody>`;
+    for(const r of rows){
+      h+=`<tr><td>${granLabel(r.key)}</td>${r.cells.slice(0,7).map(v=>`<td style="${heatColor(v,mn,mx,e==='idx')}" data-v="${v??''}">${fmtV(v,r.repMk,e)}</td>`).join('')}<td data-v="${r.cells[7]??''}"><b>${fmtV(r.cells[7],r.repMk,e)}</b></td></tr>`; }
     return h+'</tbody></table></div></div>';
   };
   /* DOW insights across all stored months */
@@ -3170,9 +3240,9 @@ function renderHeat(d){
   const ts=trendSeries(met,gran);
   const metLabel={occ:'Occupancy',adr:'ADR',revpar:'RevPAR'}[met];
   el.innerHTML=`
-    <div class="panel noprint"><h3>Metric</h3>
-      ${[['occ','Occupancy'],['adr','ADR'],['revpar','RevPAR']].map(([k,l])=>`<button class="heatbtn ${met===k?'on':''}" onclick="__setHeat('${k}')">${l}</button>`).join(' ')}
-      <span class="small" style="margin-left:10px">Month × day-of-week averages from STAR daily data. Grids fill up as you drop each Monthly STAR file (${months.length} month(s) stored).</span></div>
+    <div class="panel noprint"><h3>Metric ${granCtl()}</h3>
+      <div style="margin-top:14px">${[['occ','Occupancy'],['adr','ADR'],['revpar','RevPAR']].map(([k,l])=>`<button class="heatbtn ${met===k?'on':''}" onclick="__setHeat('${k}')">${l}</button>`).join(' ')}
+      <span class="small" style="margin-left:10px">${(state.gran||'monthly')==='quarterly'?'Quarter':'Month'} × day-of-week averages from STAR daily data. Grids fill up as you drop each Monthly STAR file (${months.length} month(s) in focus).${(state.gran||'monthly')==='quarterly'?' Quarterly rows average the day-of-week cells of the months in each quarter.':''}</span></div></div>
     <div class="panel"><h3>Trend — ${metLabel}, ${gran}
         <span class="noprint" style="float:right">
           ${tsRangeSel()} &nbsp;
@@ -3627,8 +3697,8 @@ function renderRevA(d){
     html+=`<div class="panel"><h3>Top key accounts ${rev.keyacct?('— '+rev.keyacct.years[rev.keyacct.years.length-1]):''}
       <input class="tblflt noprint" placeholder="${t('filter')}"></h3>${body}</div>`;
   }
-  /* --- upgrades by room & membership --- */
-  {
+  /* --- upgrades by room & membership --- (hidden: set SHOW_UPGRADE_ANALYSIS=true to restore) */
+  if(SHOW_UPGRADE_ANALYSIS){
     let body=missing('bookstay');
     if(rev.bookstay){
       const bs=rev.bookstay, yr=bs.years[bs.years.length-1];
@@ -3653,8 +3723,8 @@ function renderRevA(d){
     }
     html+=`<div class="panel"><h3>Room upgrades — booked vs stayed <input class="tblflt noprint" placeholder="${t('filter')}"></h3>${body}</div>`;
   }
-  /* --- paid upsell (FO/Reservation + Nor1) --- */
-  {
+  /* --- paid upsell (FO/Reservation + Nor1) --- (hidden with the upgrade analysis) */
+  if(SHOW_UPGRADE_ANALYSIS){
     let body=missing('upsell');
     if(rev.upsell){
       const up=rev.upsell, yr=up.years[up.years.length-1];
